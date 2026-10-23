@@ -24,7 +24,8 @@ if (!target) {
 
 let urls;
 if (target.startsWith('https://')) {
-  urls = [target];
+  // La photo et le fichier de son auteur (.json du même nom).
+  urls = [target, target.replace(/\.jpg$/, '.json')];
 } else {
   urls = [];
   let cursor;

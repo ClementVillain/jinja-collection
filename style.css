@@ -60,6 +60,8 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 
 .account { display: flex; align-items: center; gap: 10px; margin: 0 16px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .account[hidden] { display: none; }
+.account.pulse { animation: pulse 1.2s ease-out 2; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(214, 59, 35, 0.55); } 100% { box-shadow: 0 0 0 12px rgba(214, 59, 35, 0); } }
 .account-pitch { flex: 1; margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .account-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
 .account-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -176,6 +178,11 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
   position: absolute; right: 6px; bottom: 6px; padding: 2px 7px; border-radius: 6px;
   background: rgba(0, 0, 0, 0.55); color: #fff !important; font-size: 10px; text-decoration: none;
 }
+.popup-cover-credit.with-avatar { right: 40px; }
+.popup-cover img.popup-cover-avatar {
+  position: absolute; right: 6px; bottom: 6px; width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); object-fit: cover; background: var(--paper-2);
+}
 .popup-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 18px; color: var(--ink); }
 .popup-latin { color: var(--ink); opacity: 0.55; font-size: 12px; letter-spacing: 0.02em; margin-top: 1px; }
 .popup-status { margin: 8px 0; font-size: 13px; color: var(--muted); }
@@ -185,6 +192,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
   display: block; margin-top: 10px; padding: 7px 10px; border: 1px dashed var(--line); border-radius: 8px;
   font-size: 12px; color: var(--ink); text-align: center; cursor: pointer;
 }
+button.popup-upload { width: 100%; background: none; font: inherit; font-size: 12px; color: var(--muted); }
 .popup-upload:hover { border-color: var(--vermilion); color: var(--vermilion); }
 .popup-upload.busy { opacity: 0.5; pointer-events: none; }
 .popup-upload-status { font-size: 12px; margin-top: 6px; color: var(--muted); }

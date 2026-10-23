@@ -121,9 +121,10 @@
       <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
       <div class="popup-name">${esc(s.name)}</div>${latin}${status}
       <div class="popup-actions">${actions}</div>
-      ${communityAvailable ? `<label class="popup-upload">📷 Partager ma photo de ce sanctuaire
+      ${!communityAvailable ? '' : googleToken ? `<label class="popup-upload">📷 Partager ma photo de ce sanctuaire
         <input type="file" accept="image/*" data-upload="${s.id}" hidden></label>
-      <div class="popup-upload-status" data-upload-status></div>` : ''}
+      <div class="popup-upload-status" data-upload-status></div>`
+    : '<button type="button" class="popup-upload" data-action="login-hint">📷 Connecte-toi pour partager ta photo</button>'}
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
     </div>`;
   }
@@ -262,16 +263,34 @@
   // Wikimedia n'a pas de photo certaine du sanctuaire.
   let communityPhotos = {};
   let communityAvailable = false;
-  fetch('/api/community')
+  // no-cache : le navigateur revalide toujours (la liste change dès qu'un visiteur partage une photo).
+  fetch('/api/community', { cache: 'no-cache' })
     .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
     .then((photos) => { communityPhotos = photos; communityAvailable = true; })
     .catch(() => { /* serveur local sans /api : pas de partage de photos */ });
 
-  function chooseCover(s, wiki) {
+  // Auteur d'une photo partagée (prénom + photo de profil), lu une fois par photo.
+  const authorCache = new Map();
+  function photoAuthor(metaUrl) {
+    if (!metaUrl) return Promise.resolve(null);
+    if (!authorCache.has(metaUrl)) {
+      authorCache.set(metaUrl, fetch(metaUrl).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+    }
+    return authorCache.get(metaUrl);
+  }
+
+  async function chooseCover(s, wiki) {
     if (wiki && !wiki.nearby) return wiki;
-    const url = communityPhotos[s.id];
-    if (url) return { src: url, href: url, credit: 'Photo partagée par un visiteur ↗' };
-    return wiki;
+    const entry = communityPhotos[s.id];
+    if (!entry) return wiki;
+    const url = typeof entry === 'string' ? entry : entry.url;
+    const by = await photoAuthor(entry.meta);
+    return {
+      src: url,
+      href: url,
+      credit: by?.name ? `Photo de ${esc(by.name)}` : 'Photo partagée par un visiteur ↗',
+      by,
+    };
   }
 
   // Redimensionne à 1600 px max et réencode en JPEG : fichier léger, et les métadonnées
@@ -300,11 +319,14 @@
       const jpeg = await toJpeg(input.files[0]);
       const res = await fetch(`/api/upload?shrine=${encodeURIComponent(s.id)}`, {
         // octet-stream : Vercel transmet alors le corps tel quel (Buffer) à la fonction.
-        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: jpeg,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream', Authorization: `Bearer ${googleToken}` },
+        body: jpeg,
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Erreur ${res.status}`);
-      communityPhotos[s.id] = body.url;
+      communityPhotos[s.id] = { url: body.url, meta: body.meta };
+      authorCache.set(body.meta, Promise.resolve(body.by));
       const cover = popup.querySelector('[data-cover]');
       loadCover(s, cover);
       const wiki = await photoFor(s).catch(() => null);
@@ -339,7 +361,9 @@
         el.innerHTML = '';
         el.append(img);
         const credit = photo.credit || `${photo.nearby ? 'Photo prise à proximité · ' : ''}Wikimedia Commons ↗`;
-        el.insertAdjacentHTML('beforeend', `<a class="popup-cover-credit" href="${esc(photo.href)}" target="_blank" rel="noopener">${credit}</a>`);
+        const avatar = photo.by?.picture;
+        el.insertAdjacentHTML('beforeend', `<a class="popup-cover-credit${avatar ? ' with-avatar' : ''}" href="${esc(photo.href)}" target="_blank" rel="noopener">${credit}</a>`
+          + (avatar ? `<img class="popup-cover-avatar" src="${esc(avatar)}" alt="${esc(photo.by.name || '')}" title="Photo partagée par ${esc(photo.by.name || 'un visiteur')}" referrerpolicy="no-referrer">` : ''));
         // Lien direct vers la fiche Google Maps du sanctuaire quand Google l'a trouvé.
         const link = el.closest('.popup')?.querySelector('.popup-link');
         if (link && photo.mapsUri) link.href = photo.mapsUri;
@@ -403,6 +427,7 @@
     else if (action === 'unvisit') unmarkVisited(id);
     else if (action === 'card') openCard(id);
     else if (action === 'locate') focusShrine(id);
+    else if (action === 'login-hint') showAccount();
   });
 
   // ---------- Panneau ----------
@@ -474,7 +499,7 @@
 
   // ---------- Carte postale ----------
   // Crédit affiché sur la carte, en texte simple.
-  const cardCredit = (photo) => (photo.credit || 'Wikimedia Commons').replace(/\s*↗$/, '').replace(/&amp;/g, '&');
+  const cardCredit = (photo) => (photo.credit || 'Wikimedia Commons').replace(/\s*↗$/, '').replace(/^Photo de /, '').replace(/&amp;/g, '&');
 
   // Remplace l'illustration par la photo de couverture une fois celle-ci chargée.
   function withCoverPhoto(container, s, visit, number) {
@@ -714,6 +739,15 @@
   // Reconnexion silencieuse des habitués (auto_select) quand le jeton a expiré.
   function silentLogin() {
     try { if (googleClientId && window.google && localStorage.getItem(LOGGED_KEY)) google.accounts.id.prompt(); } catch { /* ignore */ }
+  }
+
+  // Ouvre le menu et met en évidence l'encart de connexion.
+  function showAccount() {
+    if (isMobile()) setCollapsed(false); else setPanelHidden(false);
+    const el = $('#account');
+    el.classList.remove('pulse');
+    void el.offsetWidth;
+    el.classList.add('pulse');
   }
 
   function renderAccount() {
