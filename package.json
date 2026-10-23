@@ -3,6 +3,7 @@
   "private": true,
   "description": "Carte des sanctuaires shintō du Japon à collectionner",
   "dependencies": {
-    "@vercel/blob": "^2.8.2"
+    "@vercel/blob": "^2.8.2",
+    "jose": "^6.2.13"
   }
 }

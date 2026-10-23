@@ -1,5 +1,6 @@
 (function () {
   const STORAGE_KEY = 'jinja-collection:visits';
+  const DELETED_KEY = 'jinja-collection:deleted';
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -7,15 +8,23 @@
   let shrines = [];
   const byId = new Map();
   const markers = new Map();
-  let visits = loadVisits();
+  let visits = loadJson(STORAGE_KEY);
+  // Sanctuaires retirés (date du retrait) : la synchronisation ne doit pas les faire revenir.
+  let deleted = loadJson(DELETED_KEY);
 
-  function loadVisits() {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+  function loadJson(key) {
+    try { return JSON.parse(localStorage.getItem(key)) || {}; }
     catch { return {}; }
   }
+  function persistVisits() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(visits));
+      localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
+    } catch (err) { alert("Impossible d'enregistrer la visite : " + err.message); }
+  }
   function saveVisits() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(visits)); }
-    catch (err) { alert("Impossible d'enregistrer la visite : " + err.message); }
+    persistVisits();
+    scheduleSync();
   }
   const isVisited = (id) => Object.prototype.hasOwnProperty.call(visits, id);
 
@@ -363,7 +372,9 @@
 
   // ---------- Actions ----------
   function markVisited(id) {
-    visits[id] = { date: new Date().toISOString(), note: '' };
+    const now = new Date().toISOString();
+    visits[id] = { date: now, note: '', updatedAt: now };
+    delete deleted[id];
     saveVisits();
     map.closePopup();
     placeMarker(id);
@@ -375,6 +386,7 @@
     const s = byId.get(id);
     if (!confirm(`Retirer « ${s.name} » de tes visites ? La carte postale sera perdue.`)) return;
     delete visits[id];
+    deleted[id] = new Date().toISOString();
     saveVisits();
     map.closePopup();
     placeMarker(id);
@@ -507,6 +519,7 @@
   $('#modal-note').addEventListener('change', (e) => {
     if (!modalId) return;
     visits[modalId].note = e.target.value.trim();
+    visits[modalId].updatedAt = new Date().toISOString();
     saveVisits();
     refreshPanels();
   });
@@ -569,7 +582,8 @@
       let added = 0;
       for (const [id, v] of Object.entries(incoming)) {
         if (!v || typeof v.date !== 'string' || isVisited(id)) continue;
-        visits[id] = { date: v.date, note: typeof v.note === 'string' ? v.note : '' };
+        visits[id] = { date: v.date, note: typeof v.note === 'string' ? v.note : '', updatedAt: new Date().toISOString() };
+        delete deleted[id];
         added++;
         if (markers.has(id)) placeMarker(id);
       }
@@ -581,6 +595,152 @@
     }
     e.target.value = '';
   });
+
+  // ---------- Compte Google et synchronisation ----------
+  // « Se connecter avec Google » donne un jeton d'identité (valable 1 h) que le serveur vérifie.
+  // Les visites restent aussi dans le navigateur : la synchro fusionne les deux (voir merge.js).
+  const TOKEN_KEY = 'jinja-collection:google-token';
+  const LOGGED_KEY = 'jinja-collection:logged-in';
+  let googleClientId = null;
+  let googleToken = null;
+  let googleUser = null;
+  let syncTimer = null;
+  let syncing = null;
+  let syncAgain = false;
+  let syncStatus = { text: '', error: false };
+
+  function jwtPayload(token) {
+    try {
+      const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))));
+    } catch { return null; }
+  }
+
+  function setToken(token) {
+    const payload = token && jwtPayload(token);
+    const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
+    googleToken = valid ? token : null;
+    googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
+    try {
+      if (valid) { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(LOGGED_KEY, '1'); }
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch { /* ignore */ }
+    renderAccount();
+  }
+
+  async function syncApi(method, body) {
+    const res = await fetch('/api/sync', {
+      method,
+      headers: { Authorization: `Bearer ${googleToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status === 401) {
+      setToken(null);
+      silentLogin();
+      throw new Error('session expirée, reconnexion…');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `erreur ${res.status}`);
+    return data;
+  }
+
+  function applyMerged(merged) {
+    const changed = new Set([...Object.keys(visits), ...Object.keys(merged.visits)]
+      .filter((id) => !!visits[id] !== !!merged.visits[id]));
+    visits = merged.visits;
+    deleted = merged.deleted;
+    persistVisits();
+    changed.forEach((id) => { if (markers.has(id)) placeMarker(id); });
+    refreshPanels();
+  }
+
+  function setSyncStatus(text, error = false) {
+    syncStatus = { text, error };
+    const el = $('#sync-status');
+    if (el) { el.textContent = text; el.classList.toggle('error', error); }
+  }
+
+  // Lit le compte, fusionne avec le navigateur, puis renvoie le résultat si quelque chose a changé.
+  function syncNow() {
+    if (!googleToken) return Promise.resolve();
+    if (syncing) { syncAgain = true; return syncing; }
+    setSyncStatus('Synchronisation…');
+    syncing = (async () => {
+      const { state: remote } = await syncApi('GET');
+      const merged = JinjaMerge.merge({ visits, deleted }, remote);
+      applyMerged(merged);
+      if (!JinjaMerge.same(merged, remote)) await syncApi('PUT', merged);
+      setSyncStatus('Synchronisé ✓');
+    })()
+      .catch((err) => setSyncStatus('Synchro impossible : ' + err.message, true))
+      .finally(() => {
+        syncing = null;
+        if (syncAgain) { syncAgain = false; scheduleSync(); }
+      });
+    return syncing;
+  }
+
+  function scheduleSync() {
+    if (!googleToken) return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncNow, 1200);
+  }
+
+  // Reconnexion silencieuse des habitués (auto_select) quand le jeton a expiré.
+  function silentLogin() {
+    try { if (googleClientId && window.google && localStorage.getItem(LOGGED_KEY)) google.accounts.id.prompt(); } catch { /* ignore */ }
+  }
+
+  function renderAccount() {
+    const el = $('#account');
+    if (!googleClientId) { el.hidden = true; return; }
+    el.hidden = false;
+    if (googleUser) {
+      el.innerHTML = `
+        ${googleUser.picture ? `<img class="account-avatar" src="${esc(googleUser.picture)}" alt="" referrerpolicy="no-referrer">` : ''}
+        <div class="account-text">
+          <span class="account-name">${esc(googleUser.name)}</span>
+          <span id="sync-status" class="account-status ${syncStatus.error ? 'error' : ''}">${esc(syncStatus.text)}</span>
+        </div>
+        <button id="logout-btn" class="ghost small" type="button">Déconnexion</button>`;
+      $('#logout-btn').addEventListener('click', () => {
+        try { google.accounts.id.disableAutoSelect(); localStorage.removeItem(LOGGED_KEY); } catch { /* ignore */ }
+        setSyncStatus('');
+        setToken(null);
+      });
+    } else {
+      el.innerHTML = `<p class="account-pitch">Connecte-toi pour retrouver tes cartes sur tous tes appareils.</p><div id="google-btn"></div>`;
+      if (window.google?.accounts?.id) {
+        google.accounts.id.renderButton($('#google-btn'), { theme: 'outline', size: 'medium', shape: 'pill', text: 'signin_with', locale: 'fr' });
+      }
+    }
+  }
+
+  try { setToken(localStorage.getItem(TOKEN_KEY)); } catch { setToken(null); }
+  fetch('/api/config')
+    .then((res) => (res.ok ? res.json() : null))
+    .then((config) => {
+      if (!config?.googleClientId) return;
+      googleClientId = config.googleClientId;
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.onload = () => {
+        google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: ({ credential }) => { setToken(credential); syncNow(); },
+          auto_select: true,
+          use_fedcm_for_prompt: true,
+        });
+        renderAccount();
+        if (googleToken) syncNow(); else silentLogin();
+      };
+      document.head.append(script);
+    })
+    .catch(() => { /* serveur local sans /api : pas de compte */ });
+
+  // Revenir sur l'appli (autre onglet, téléphone déverrouillé) récupère les cartes ajoutées ailleurs.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleSync(); });
 
   // ---------- Mobile : réduire / déplier le panneau ----------
   // Sur mobile, le panneau est un volet : on le glisse vers le bas pour libérer la carte,

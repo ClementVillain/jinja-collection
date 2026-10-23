@@ -43,6 +43,15 @@ button { font: inherit; cursor: pointer; }
 .progress-bar { height: 4px; margin: 4px 20px 12px; background: var(--paper-2); border-radius: 4px; overflow: hidden; }
 #progress-fill { height: 100%; width: 0; background: var(--vermilion); transition: width 0.4s; }
 
+.account { display: flex; align-items: center; gap: 10px; margin: 0 16px 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.account[hidden] { display: none; }
+.account-pitch { flex: 1; margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.account-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+.account-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.account-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-status { font-size: 11px; color: #2e7d4f; }
+.account-status.error { color: var(--vermilion); }
+
 .tabs { display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--line); }
 .tab {
   flex: 1; background: none; border: 0; padding: 10px 6px;
