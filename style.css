@@ -118,7 +118,8 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .route-step-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 14px; }
 .route-leg { grid-column: 2; font-size: 11px; color: var(--muted); }
 .route-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
-.route-gmaps { text-decoration: none; font-size: 13px; }
+.route-gmaps { text-decoration: none; }
+.route-actions [data-route="start"] { font-weight: 700; }
 .route-pin { background: none; border: 0; }
 .route-pin span {
   display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
@@ -259,16 +260,91 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
 /* « J'y suis allé » et « À visiter » : même taille. */
 .popup-actions .wish-btn { flex: 1; }
 .popup-actions [data-action="visit"] { flex: 1; }
+.popup-route-row { display: flex; gap: 6px; margin-top: 10px; }
 .popup-route {
-  display: block; margin-top: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
-  font-size: 12px; font-weight: 500; text-align: center; text-decoration: none; color: var(--ink) !important;
+  flex: 1; display: block; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  font-size: 12px; font-weight: 500; text-align: center; text-decoration: none; color: var(--ink) !important; white-space: nowrap;
 }
 .popup-route:hover { border-color: var(--vermilion); color: var(--vermilion) !important; }
+/* « Y aller » : navigation intégrée, plus visible que le lien Google. */
+.popup-route.popup-go { flex: 1.2; border-color: var(--ink); background: var(--ink); color: #fff !important; font-weight: 700; }
+.popup-route.popup-go:hover { background: #000; color: #fff !important; }
 .popup-upload-status { font-size: 12px; margin-top: 6px; color: var(--muted); }
 .popup-upload-status:empty { display: none; }
 .popup-upload-status.ok { color: #2e7d4f; }
 .popup-upload-status.error { color: var(--vermilion); }
 .popup-link { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--muted) !important; }
+
+/* ---------- Navigation (navigation.js) ---------- */
+/* Bandeau en haut de l'écran : grands caractères et fort contraste, lisible au soleil. */
+.nav-ui[hidden], .nav-recenter[hidden], .nav-msg[hidden], .nav-dist[hidden], .nav-sub[hidden] { display: none; }
+.nav-banner {
+  position: fixed; z-index: 1500; left: 8px; right: 8px; top: calc(env(safe-area-inset-top) + 8px);
+  max-width: 560px; margin: 0 auto; border-radius: 16px; overflow: hidden;
+  background: #17110e; color: #fff; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+}
+.nav-main { display: flex; align-items: center; gap: 14px; padding: 14px 16px; }
+.nav-arrow {
+  flex: 0 0 68px; height: 68px; border-radius: 14px; display: grid; place-items: center;
+  background: var(--vermilion); color: #fff;
+}
+.nav-arrow svg { width: 54px; height: 54px; }
+.nav-arrive-icon { font-size: 38px; line-height: 1; font-weight: 700; }
+.nav-wait { width: 30px; height: 30px; border-radius: 50%; border: 4px solid rgba(255, 255, 255, 0.35); border-top-color: #fff; animation: nav-spin 0.9s linear infinite; }
+@keyframes nav-spin { to { transform: rotate(360deg); } }
+.nav-text { flex: 1; min-width: 0; }
+.nav-dist { font-size: 36px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.nav-instr { font-size: 22px; font-weight: 700; line-height: 1.25; overflow-wrap: anywhere; }
+.nav-sub { margin-top: 4px; font-size: 16px; color: #f1e4d1; line-height: 1.3; }
+.nav-msg {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 16px;
+  background: #fff1c9; color: #2e2100; font-size: 16px; font-weight: 500; line-height: 1.35;
+}
+.nav-msg.error { background: #ffd9d1; color: #6d1203; }
+.nav-msg.arrive { background: #dff3e3; color: #0f3a1c; }
+.nav-msg-text { flex: 1 1 200px; }
+.nav-msg-stop { display: flex; flex: 1 1 100%; align-items: center; justify-content: space-between; gap: 8px; font-family: 'Shippori Mincho', serif; font-weight: 700; }
+.nav-visit, .nav-done {
+  border: 0; border-radius: 10px; padding: 10px 14px; font-size: 16px; font-weight: 700;
+  background: var(--vermilion); color: #fff;
+}
+.nav-visit { font-family: 'Zen Kaku Gothic New', system-ui, sans-serif; white-space: nowrap; }
+.nav-done { background: var(--ink); }
+.nav-visited { color: #1f6b38; font-weight: 700; font-size: 14px; }
+.nav-msg-close { border: 0; background: none; font-size: 18px; color: inherit; padding: 4px 6px; }
+.nav-foot { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; background: var(--paper); color: var(--ink); }
+.nav-eta { flex: 1; min-width: 0; }
+.nav-eta-main strong { font-size: 24px; font-variant-numeric: tabular-nums; }
+.nav-eta-main span { font-size: 16px; font-weight: 500; }
+.nav-eta-sub { font-size: 12px; color: var(--muted); }
+.nav-eta-target { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-eta-target em { color: var(--vermilion); font-style: normal; font-weight: 700; }
+.nav-modes { display: flex; padding: 2px; border-radius: 10px; background: var(--paper-2); }
+.nav-modes button { border: 0; background: none; padding: 6px 8px; border-radius: 8px; font-size: 18px; opacity: 0.5; }
+.nav-modes button.on { background: #fff; opacity: 1; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
+.nav-ui.finished .nav-modes, .nav-ui.finished .nav-stop { display: none; }
+.nav-stop { border: 0; border-radius: 10px; padding: 12px 16px; background: var(--vermilion); color: #fff; font-size: 16px; font-weight: 700; }
+.nav-stop:hover { background: var(--vermilion-dark); }
+.nav-recenter {
+  position: fixed; z-index: 1500; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  padding: 12px 20px; border: 0; border-radius: 999px; background: #fff; color: #1f5fd1;
+  font-size: 16px; font-weight: 700; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+/* Les boutons de la carte passent sous le bandeau. */
+body.navigating .leaflet-top { top: calc(var(--nav-h, 0px) + env(safe-area-inset-top) + 8px); }
+/* Position : point bleu et cône de direction. */
+.nav-me-icon { background: none; border: 0; }
+.nav-me { position: relative; width: 64px; height: 64px; }
+.nav-me-cone {
+  position: absolute; inset: 0; border-radius: 50%; transition: transform 0.4s;
+  background: conic-gradient(from -32deg, rgba(47, 124, 246, 0.55) 0deg 64deg, transparent 64deg);
+  -webkit-mask: radial-gradient(circle, #000 0 68%, transparent 70%); mask: radial-gradient(circle, #000 0 68%, transparent 70%);
+}
+.nav-me.no-heading .nav-me-cone { display: none; }
+.nav-me-dot {
+  position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+  background: #2f7cf6; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.45);
+}
 
 /* ---------- Modale ---------- */
 .modal { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; }
@@ -329,6 +405,10 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
   .progress-bar { margin: 0 16px 8px; }
   /* Garde les contrôles Leaflet du bas au-dessus de la barre repliée. */
   .leaflet-bottom { bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom)); }
+  .nav-recenter { bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom) + 14px); }
+  .nav-dist { font-size: 32px; }
+  .nav-instr { font-size: 20px; }
+  .nav-arrow { flex-basis: 60px; height: 60px; }
 }
 
 .leaflet-container a.leaflet-popup-close-button {

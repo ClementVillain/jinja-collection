@@ -22,6 +22,13 @@ Puis ouvre http://localhost:8642.
 - **Photo de couverture** dans chaque popup : photo Google Maps (si la clé est configurée), sinon photo Wikimedia liée au sanctuaire (OpenStreetMap/Wikidata) ou trouvée par nom, sinon photo partagée par un visiteur, sinon photo Wikimedia « à proximité », sinon l'illustration de la carte postale.
 - **Photos de la communauté** : depuis la popup, « 📷 Partager ma photo » envoie une photo du sanctuaire (redimensionnée à 1600 px, sans métadonnées GPS), visible par tous.
 - Lien « Ouvrir dans Google Maps » sur chaque sanctuaire.
+- **Navigation intégrée** (`navigation.js`) : « ➤ Y aller » dans la popup, ou « ▶ Démarrer » sur un circuit de l'onglet « À visiter ». Position suivie en direct, bandeau avec la prochaine manœuvre (étapes OSRM, textes générés en français), heure d'arrivée, recalcul si on s'écarte du tracé, écran maintenu allumé, « J'y suis allé ⛩ » à l'arrivée. Pour tester sans bouger : ajoute `?simulate=1` à l'URL (`&vitesse=10` pour accélérer).
+
+## Tests
+
+```bash
+npm test   # fonctions pures de navigation.js (node --test)
+```
 
 ## Données
 
