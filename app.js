@@ -292,19 +292,32 @@
     return authorCache.get(metaUrl);
   }
 
-  async function chooseCover(s, wiki) {
-    if (wiki && !wiki.nearby) return wiki;
+  // Photos partagées d'un sanctuaire, de la plus récente à la plus ancienne.
+  // (Accepte aussi l'ancien format de l'API : une seule photo, en chaîne ou en objet.)
+  function communityEntries(s) {
     const entry = communityPhotos[s.id];
-    if (!entry) return wiki;
-    const url = typeof entry === 'string' ? entry : entry.url;
-    const by = await photoAuthor(entry.meta);
-    return {
-      src: url,
-      href: url,
-      credit: by?.name ? `Photo de ${esc(by.name)}` : 'Photo partagée par un visiteur ↗',
-      by,
-    };
+    if (!entry) return [];
+    if (typeof entry === 'string') return [{ url: entry, meta: null }];
+    return Array.isArray(entry) ? entry : [entry];
   }
+
+  function communitySlides(s) {
+    return Promise.all(communityEntries(s).map(async ({ url, meta }) => {
+      const by = await photoAuthor(meta);
+      return { src: url, href: url, credit: by?.name ? `Photo de ${esc(by.name)}` : 'Photo partagée par un visiteur ↗', by };
+    }));
+  }
+
+  // Photos du carrousel : photo Wikimedia sûre en premier, puis celles des visiteurs.
+  // Une photo Wikimedia « à proximité » ne sert que s'il n'y a rien d'autre.
+  async function coverSlides(s, wiki) {
+    const community = await communitySlides(s);
+    if (wiki && !wiki.nearby) return [wiki, ...community];
+    if (community.length) return community;
+    return wiki ? [wiki] : [];
+  }
+
+  const chooseCover = async (s, wiki) => (await coverSlides(s, wiki))[0] || null;
 
   // Redimensionne à 1600 px max et réencode en JPEG : fichier léger, et les métadonnées
   // EXIF (dont la position GPS du téléphone) disparaissent au passage.
@@ -338,14 +351,15 @@
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Erreur ${res.status}`);
-      communityPhotos[s.id] = { url: body.url, meta: body.meta };
+      communityPhotos[s.id] = [{ url: body.url, meta: body.meta }, ...communityEntries(s)];
       authorCache.set(body.meta, Promise.resolve(body.by));
-      const cover = popup.querySelector('[data-cover]');
-      loadCover(s, cover);
       const wiki = await photoFor(s).catch(() => null);
+      const withWiki = wiki && !wiki.nearby;
+      // Affiche directement la nouvelle photo dans le carrousel.
+      loadCover(s, popup.querySelector('[data-cover]'), withWiki ? 1 : 0);
       status.classList.add('ok');
-      status.textContent = wiki && !wiki.nearby
-        ? 'Merci ! Ta photo est enregistrée (la photo Wikimedia reste la couverture).'
+      status.textContent = withWiki
+        ? 'Merci ! Ta photo est ajoutée au carrousel (la photo Wikimedia reste en premier).'
         : 'Merci ! Ta photo est maintenant la couverture de ce sanctuaire.';
     } catch (err) {
       status.classList.add('error');
@@ -363,29 +377,68 @@
   // Image de couverture retenue pour un sanctuaire : la même pour la popup et la carte postale.
   const coverPhoto = (s) => photoFor(s).catch(() => null).then((wiki) => chooseCover(s, wiki));
 
-  function loadCover(s, el) {
-    coverPhoto(s).then((photo) => {
-      if (!el.isConnected) return;
-      if (!photo) return showIllustration(s, el, 'Pas encore de photo · illustration');
-      const img = new Image();
-      img.alt = s.name;
-      img.referrerPolicy = 'no-referrer';
-      img.onload = () => {
-        el.innerHTML = '';
-        el.append(img);
-        const credit = photo.credit || `${photo.nearby ? 'Photo prise à proximité · ' : ''}Wikimedia Commons ↗`;
-        const avatar = photo.by?.picture;
-        el.insertAdjacentHTML('beforeend', `<a class="popup-cover-credit${avatar ? ' with-avatar' : ''}" href="${esc(photo.href)}" target="_blank" rel="noopener">${credit}</a>`
-          + (avatar ? `<img class="popup-cover-avatar" src="${esc(avatar)}" alt="${esc(photo.by.name || '')}" title="Photo partagée par ${esc(photo.by.name || 'un visiteur')}" referrerpolicy="no-referrer">` : ''));
-        // Lien direct vers la fiche Google Maps du sanctuaire quand Google l'a trouvé.
-        const link = el.closest('.popup')?.querySelector('.popup-link');
-        if (link && photo.mapsUri) link.href = photo.mapsUri;
-      };
+  function slideHtml(s, photo) {
+    const credit = photo.credit || `${photo.nearby ? 'Photo prise à proximité · ' : ''}Wikimedia Commons ↗`;
+    const avatar = photo.by?.picture;
+    return `<div class="cover-slide">
+      <img class="cover-img" src="${esc(photo.src)}" alt="${esc(s.name)}" referrerpolicy="no-referrer" draggable="false">
+      <a class="popup-cover-credit${avatar ? ' with-avatar' : ''}" href="${esc(photo.href)}" target="_blank" rel="noopener">${credit}</a>
+      ${avatar ? `<img class="popup-cover-avatar" src="${esc(avatar)}" alt="${esc(photo.by.name || '')}" title="Photo partagée par ${esc(photo.by.name || 'un visiteur')}" referrerpolicy="no-referrer" draggable="false">` : ''}
+    </div>`;
+  }
+
+  // Carrousel : flèches, points, balayage au doigt. Une photo qui ne charge pas est retirée.
+  function renderCarousel(s, el, slides, start = 0) {
+    let index = Math.min(start, slides.length - 1);
+    const many = slides.length > 1;
+    el.innerHTML = `<div class="cover-track">${slides.map((p) => slideHtml(s, p)).join('')}</div>`
+      + (many ? `<button type="button" class="cover-nav prev" aria-label="Photo précédente">‹</button>
+        <button type="button" class="cover-nav next" aria-label="Photo suivante">›</button>
+        <div class="cover-dots">${slides.map((_, i) => `<button type="button" data-slide="${i}" aria-label="Photo ${i + 1}"></button>`).join('')}</div>` : '');
+    const track = el.querySelector('.cover-track');
+    const go = (i) => {
+      index = (i + slides.length) % slides.length;
+      track.style.transform = `translateX(${-index * 100}%)`;
+      el.querySelectorAll('.cover-dots button').forEach((d, j) => d.classList.toggle('on', j === index));
+    };
+    go(index);
+    el.querySelectorAll('.cover-img').forEach((img, i) => {
       img.onerror = () => {
-        if (!photo.credit) forgetPhoto(s.id);
-        if (el.isConnected) showIllustration(s, el, 'Photo indisponible pour le moment');
+        if (!slides[i].credit) forgetPhoto(s.id);
+        const rest = slides.filter((_, j) => j !== i);
+        if (!el.isConnected) return;
+        if (rest.length) renderCarousel(s, el, rest, index > i ? index - 1 : index);
+        else showIllustration(s, el, 'Photo indisponible pour le moment');
       };
-      img.src = photo.src;
+    });
+    if (!many) return;
+    el.querySelector('.prev').onclick = () => go(index - 1);
+    el.querySelector('.next').onclick = () => go(index + 1);
+    el.querySelectorAll('.cover-dots button').forEach((d) => { d.onclick = () => go(Number(d.dataset.slide)); });
+    let startX = null;
+    el.onpointerdown = (e) => { if (!e.target.closest('button, a')) startX = e.clientX; };
+    el.onpointerup = (e) => {
+      if (startX === null) return;
+      const dx = e.clientX - startX;
+      startX = null;
+      if (Math.abs(dx) > 40) go(index + (dx < 0 ? 1 : -1));
+    };
+  }
+
+  function loadCover(s, el, start = 0) {
+    photoFor(s).catch(() => null).then((wiki) => coverSlides(s, wiki)).then((slides) => {
+      if (!el.isConnected) return;
+      if (!slides.length) return showIllustration(s, el, 'Pas encore de photo · illustration');
+      // Lien direct vers la fiche Google Maps du sanctuaire quand Google l'a trouvé.
+      const mapsUri = slides.find((p) => p.mapsUri)?.mapsUri;
+      const link = el.closest('.popup')?.querySelector('.popup-link');
+      if (link && mapsUri) link.href = mapsUri;
+      // On attend la première photo pour ne pas afficher un cadre vide.
+      const first = new Image();
+      first.referrerPolicy = 'no-referrer';
+      first.onload = () => { if (el.isConnected) renderCarousel(s, el, slides, start); };
+      first.onerror = () => { if (el.isConnected) renderCarousel(s, el, slides, start); };
+      first.src = slides[Math.min(start, slides.length - 1)].src;
     }).catch(() => {
       if (el.isConnected) showIllustration(s, el, 'Photo indisponible pour le moment · réessaie plus tard');
     });
