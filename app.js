@@ -157,7 +157,27 @@
     return { src: best.imageinfo[0].thumburl, href: best.imageinfo[0].descriptionurl, nearby: scored[0].score < 3 };
   }
 
+  // Photo Google Maps via la fonction serveur /api/photo (clé API cachée côté Vercel).
+  // Si la fonction n'existe pas (serveur local simple) ou n'a pas de clé, on n'insiste pas.
+  let googleAvailable = true;
+  async function googlePhoto(s) {
+    if (!googleAvailable) return null;
+    const res = await fetch(`/api/photo?name=${encodeURIComponent(s.name)}&lat=${s.lat}&lon=${s.lon}`);
+    if (res.status === 404 || res.status === 503) { googleAvailable = false; return null; }
+    if (!res.ok) return null;
+    const { photo } = await res.json();
+    if (!photo) return null;
+    return {
+      src: photo.src,
+      href: photo.authorUri || photo.mapsUri,
+      credit: `${photo.author ? esc(photo.author) + ' · ' : ''}Google Maps ↗`,
+      mapsUri: photo.mapsUri,
+    };
+  }
+
   async function findPhoto(s) {
+    const google = await googlePhoto(s).catch(() => null);
+    if (google) return google;
     const ref = s.photo || '';
     let photo = null;
     if (ref.startsWith('File:')) photo = await commonsFile(ref);
@@ -180,7 +200,11 @@
       img.onload = () => {
         el.innerHTML = '';
         el.append(img);
-        el.insertAdjacentHTML('beforeend', `<a class="popup-cover-credit" href="${esc(photo.href)}" target="_blank" rel="noopener">${photo.nearby ? 'Photo prise à proximité · ' : ''}Wikimedia Commons ↗</a>`);
+          const credit = photo.credit || `${photo.nearby ? 'Photo prise à proximité · ' : ''}Wikimedia Commons ↗`;
+        el.insertAdjacentHTML('beforeend', `<a class="popup-cover-credit" href="${esc(photo.href)}" target="_blank" rel="noopener">${credit}</a>`);
+        // Lien direct vers la fiche Google Maps du sanctuaire quand Google l'a trouvé.
+        const link = el.closest('.popup')?.querySelector('.popup-link');
+        if (link && photo.mapsUri) link.href = photo.mapsUri;
       };
       img.onerror = () => { photoCache.set(s.id, Promise.resolve(null)); loadCover(s, el); };
       img.src = photo.src;

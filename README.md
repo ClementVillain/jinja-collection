@@ -18,7 +18,7 @@ Puis ouvre http://localhost:8642.
 - **Visités** : liste chronologique, avec la note de visite.
 - **Collection** : une carte postale générée par sanctuaire (saison, paysage, rareté : commune, rare ★, légendaire ★★), téléchargeable en PNG.
 - **Sauvegarder / Restaurer** : les visites sont stockées dans le navigateur (localStorage). Exporte-les en JSON pour ne pas les perdre.
-- **Photo de couverture** dans chaque popup : photo liée au sanctuaire dans OpenStreetMap/Wikidata, sinon photo Wikimedia Commons prise à moins de 200 m dont le titre évoque un sanctuaire, sinon l'illustration de la carte postale.
+- **Photo de couverture** dans chaque popup : photo Google Maps (si la clé est configurée), sinon photo liée au sanctuaire dans OpenStreetMap/Wikidata, sinon photo Wikimedia Commons prise à moins de 200 m dont le titre évoque un sanctuaire, sinon l'illustration de la carte postale.
 - Lien « Ouvrir dans Google Maps » sur chaque sanctuaire.
 
 ## Données
@@ -28,3 +28,18 @@ Les sanctuaires viennent d'OpenStreetMap (`amenity=place_of_worship` + `religion
 ```bash
 node scripts/fetch-shrines.mjs
 ```
+
+## Photos Google Maps
+
+La fonction Vercel [`api/photo.js`](api/photo.js) interroge l'API Google Places (New) côté serveur : la clé n'est jamais envoyée au navigateur.
+
+1. Dans Google Cloud Console, active **Places API (New)** et crée une clé API restreinte à cette seule API.
+2. Fixe un **quota journalier** (APIs & Services → Places API (New) → Quotas) pour plafonner la facture : chaque popup ouverte coûte une recherche + une photo.
+3. Ajoute la clé à Vercel puis redéploie :
+
+```bash
+vercel env add GOOGLE_MAPS_API_KEY production
+vercel deploy --prod
+```
+
+En local, `python3 -m http.server` n'exécute pas `/api` : l'appli retombe sur Wikimedia. Pour tester les photos Google en local : `vercel env pull` puis `vercel dev`.
