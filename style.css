@@ -196,10 +196,22 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
 
 .leaflet-popup-content-wrapper { border-radius: 12px; }
 .leaflet-popup-content { margin: 14px 16px; font-family: 'Zen Kaku Gothic New', sans-serif; }
-.popup-cover {
+.popup-cover-wrap {
   position: relative; height: 150px; margin: -14px -16px 12px;
   border-radius: 12px 12px 0 0; overflow: hidden; background: var(--paper-2);
 }
+.popup-cover { position: relative; height: 100%; overflow: hidden; }
+/* Ajouter une photo : en bas à droite de l'image, au centre s'il n'y a pas encore de photo. */
+.cover-add {
+  position: absolute; right: 8px; bottom: 8px; z-index: 3; width: 34px; height: 34px; padding: 0;
+  display: grid; place-items: center; border: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(255, 255, 255, 0.92); color: var(--ink); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s, background 0.15s;
+}
+.cover-add:hover { transform: scale(1.08); color: var(--vermilion); }
+.cover-add.busy { opacity: 0.5; pointer-events: none; }
+.popup-cover-wrap.no-photo .cover-add { right: 50%; bottom: 50%; width: 52px; height: 52px; margin: 0 -26px -26px 0; }
+.popup-cover-wrap.no-photo .cover-add svg { width: 28px; height: 28px; }
 .popup-cover img, .popup-cover svg { display: block; width: 100%; height: 100%; object-fit: cover; }
 .popup-cover-loading {
   height: 100%;
@@ -211,10 +223,9 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
 }
 @keyframes shimmer { to { background-position: -150% 0; } }
 .popup-cover-credit {
-  position: absolute; right: 6px; bottom: 6px; padding: 2px 7px; border-radius: 6px;
+  position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 6px;
   background: rgba(0, 0, 0, 0.55); color: #fff !important; font-size: 10px; text-decoration: none;
 }
-.popup-cover-credit.with-avatar { right: 40px; }
 .popup-cover { touch-action: pan-y; }
 .cover-track { display: flex; height: 100%; transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .cover-slide { position: relative; flex: 0 0 100%; height: 100%; }
@@ -233,7 +244,7 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
 }
 .cover-dots button.on { background: #fff; }
 .popup-cover img.popup-cover-avatar {
-  position: absolute; right: 6px; bottom: 6px; width: 28px; height: 28px; border-radius: 50%;
+  position: absolute; left: 8px; top: 8px; width: 28px; height: 28px; border-radius: 50%;
   border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); object-fit: cover; background: var(--paper-2);
 }
 .popup-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 18px; color: var(--ink); }
@@ -243,22 +254,19 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
 .wish-btn.on { border-color: var(--gold); color: #a8842f; }
 .popup-status.done { color: var(--vermilion); font-weight: 700; }
 .popup-actions { display: flex; gap: 6px; align-items: center; }
-.popup-upload {
-  display: block; margin-top: 10px; padding: 7px 10px; border: 1px dashed var(--line); border-radius: 8px;
-  font-size: 12px; color: var(--ink); text-align: center; cursor: pointer;
+/* « J'y suis allé » et « À visiter » : même taille. */
+.popup-actions .wish-btn { flex: 1; }
+.popup-actions [data-action="visit"] { flex: 1; }
+.popup-route {
+  display: block; margin-top: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px;
+  font-size: 12px; font-weight: 500; text-align: center; text-decoration: none; color: var(--ink) !important;
 }
-button.popup-upload { width: 100%; background: none; font: inherit; font-size: 12px; color: var(--muted); }
-.popup-upload:hover { border-color: var(--vermilion); color: var(--vermilion); }
-.popup-upload.busy { opacity: 0.5; pointer-events: none; }
+.popup-route:hover { border-color: var(--vermilion); color: var(--vermilion) !important; }
 .popup-upload-status { font-size: 12px; margin-top: 6px; color: var(--muted); }
 .popup-upload-status:empty { display: none; }
 .popup-upload-status.ok { color: #2e7d4f; }
 .popup-upload-status.error { color: var(--vermilion); }
-.popup-links { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; }
-.popup-links a { color: var(--muted) !important; }
-.popup-links a:first-child { color: var(--vermilion) !important; font-weight: 500; }
-.popup-links .popup-link { margin-top: 0; }
-.popup-link { display: inline-block; margin-top: 10px; font-size: 12px; color: var(--muted) !important; }
+.popup-link { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--muted) !important; }
 
 /* ---------- Modale ---------- */
 .modal { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; }

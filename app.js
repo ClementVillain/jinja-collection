@@ -116,6 +116,10 @@
     else cluster.addLayer(m.setIcon(iconTodo).setZIndexOffset(0));
   }
 
+  const CAMERA_PLUS = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.2-1.8h6.6L16.5 7h2A1.5 1.5 0 0 1 20 8.5v8a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5z"/>
+    <path d="M12 9.8v5.4M9.3 12.5h5.4"/></svg>`;
+
   function popupHtml(s) {
     const done = isVisited(s.id);
     const latin = latinName(s) ? `<div class="popup-latin">${esc(latinName(s))}</div>` : '';
@@ -129,19 +133,23 @@
       ? `<button class="primary" data-action="card" data-id="${s.id}">Voir ma carte</button>
          <button class="ghost small" data-action="unvisit" data-id="${s.id}">Retirer</button>`
       : `<button class="primary" data-action="visit" data-id="${s.id}">J'y suis allé ⛩</button>
-         <button class="ghost small wish-btn${wished ? ' on' : ''}" data-action="wish" data-id="${s.id}">${wished ? '★ Retirer de la liste' : '☆ À visiter'}</button>`;
+         <button class="ghost wish-btn${wished ? ' on' : ''}" data-action="wish" data-id="${s.id}">${wished ? '★ Retirer' : '☆ À visiter'}</button>`;
+    // Ajout de photo : icône en bas à droite de l'image (au centre quand il n'y a pas de photo).
+    const addPhoto = !communityAvailable ? ''
+      : googleToken
+        ? `<label class="cover-add" title="Partager ma photo de ce sanctuaire">${CAMERA_PLUS}
+            <input type="file" accept="image/*" data-upload="${s.id}" hidden></label>`
+        : `<button type="button" class="cover-add" data-action="login-hint" title="Connecte-toi pour partager ta photo">${CAMERA_PLUS}</button>`;
     return `<div class="popup">
-      <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
+      <div class="popup-cover-wrap">
+        <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
+        ${addPhoto}
+      </div>
       <div class="popup-name">${esc(s.name)}</div>${latin}${status}
       <div class="popup-actions">${actions}</div>
-      ${!communityAvailable ? '' : googleToken ? `<label class="popup-upload">📷 Partager ma photo de ce sanctuaire
-        <input type="file" accept="image/*" data-upload="${s.id}" hidden></label>
-      <div class="popup-upload-status" data-upload-status></div>`
-    : '<button type="button" class="popup-upload" data-action="login-hint">📷 Connecte-toi pour partager ta photo</button>'}
-      <div class="popup-links">
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat}%2C${s.lon}&travelmode=walking" target="_blank" rel="noopener">🧭 Itinéraire ↗</a>
-        <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
-      </div>
+      <div class="popup-upload-status" data-upload-status></div>
+      <a class="popup-route" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat}%2C${s.lon}&travelmode=walking" target="_blank" rel="noopener">Itinéraire</a>
+      <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
     </div>`;
   }
 
@@ -340,7 +348,7 @@
     const s = byId.get(input.dataset.upload);
     const popup = input.closest('.popup');
     const status = popup.querySelector('[data-upload-status]');
-    const label = popup.querySelector('.popup-upload');
+    const label = popup.querySelector('.cover-add');
     label.classList.add('busy');
     status.className = 'popup-upload-status';
     status.textContent = 'Envoi de la photo…';
@@ -375,6 +383,7 @@
 
   function showIllustration(s, el, label) {
     el.innerHTML = ShrineCard.renderScene(s) + `<span class="popup-cover-credit">${label}</span>`;
+    el.parentElement?.classList.add('no-photo');
   }
 
   // Image de couverture retenue pour un sanctuaire : la même pour la popup et la carte postale.
@@ -392,6 +401,7 @@
 
   // Carrousel : flèches, points, balayage au doigt. Une photo qui ne charge pas est retirée.
   function renderCarousel(s, el, slides, start = 0) {
+    el.parentElement?.classList.remove('no-photo');
     let index = Math.min(start, slides.length - 1);
     const many = slides.length > 1;
     el.innerHTML = `<div class="cover-track">${slides.map((p) => slideHtml(s, p)).join('')}</div>`
@@ -452,6 +462,12 @@
     if (el) loadCover(byId.get(el.dataset.cover), el);
   });
 
+  // Rouvrir une popup déjà ouverte redessine son contenu sans relancer le chargement
+  // de la photo (pas de « popupopen ») : on la laisse telle quelle.
+  function openShrinePopup(m) {
+    if (!m.isPopupOpen()) m.openPopup();
+  }
+
   function focusShrine(id, zoom = 16) {
     const s = byId.get(id);
     const m = markers.get(id);
@@ -459,11 +475,11 @@
     if (window.matchMedia('(max-width: 760px)').matches) setCollapsed(true);
     if (isVisited(id) || isWished(id)) {
       // Déjà centrée dessus : la carte ne bougerait pas et « moveend » n'arriverait jamais.
-      if (map.getZoom() >= zoom && map.getCenter().distanceTo([s.lat, s.lon]) < 20) { m.openPopup(); return; }
-      map.once('moveend', () => m.openPopup());
+      if (map.getZoom() >= zoom && map.getCenter().distanceTo([s.lat, s.lon]) < 20) { openShrinePopup(m); return; }
+      map.once('moveend', () => openShrinePopup(m));
       map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), zoom), { duration: 0.8 });
     } else {
-      cluster.zoomToShowLayer(m, () => m.openPopup());
+      cluster.zoomToShowLayer(m, () => openShrinePopup(m));
     }
   }
 
