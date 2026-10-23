@@ -18,7 +18,8 @@ Puis ouvre http://localhost:8642.
 - **Visités** : liste chronologique, avec la note de visite.
 - **Collection** : une carte postale générée par sanctuaire (saison, paysage, rareté : commune, rare ★, légendaire ★★), téléchargeable en PNG.
 - **Sauvegarder / Restaurer** : les visites sont stockées dans le navigateur (localStorage). Exporte-les en JSON pour ne pas les perdre.
-- **Photo de couverture** dans chaque popup : photo Google Maps (si la clé est configurée), sinon photo liée au sanctuaire dans OpenStreetMap/Wikidata, sinon photo Wikimedia Commons prise à moins de 200 m dont le titre évoque un sanctuaire, sinon l'illustration de la carte postale.
+- **Photo de couverture** dans chaque popup : photo Google Maps (si la clé est configurée), sinon photo Wikimedia liée au sanctuaire (OpenStreetMap/Wikidata) ou trouvée par nom, sinon photo partagée par un visiteur, sinon photo Wikimedia « à proximité », sinon l'illustration de la carte postale.
+- **Photos de la communauté** : depuis la popup, « 📷 Partager ma photo » envoie une photo du sanctuaire (redimensionnée à 1600 px, sans métadonnées GPS), visible par tous.
 - Lien « Ouvrir dans Google Maps » sur chaque sanctuaire.
 
 ## Données
@@ -43,3 +44,18 @@ vercel deploy --prod
 ```
 
 En local, `python3 -m http.server` n'exécute pas `/api` : l'appli retombe sur Wikimedia. Pour tester les photos Google en local : `vercel env pull` puis `vercel dev`.
+
+## Photos de la communauté
+
+Stockées dans Vercel Blob (store `jinja-photos`, région Tokyo) sous `community/<idSanctuaire>/`.
+`api/upload.js` reçoit les envois (JPEG, 3 Mo max), `api/community.js` liste la photo la plus récente de chaque sanctuaire.
+
+Modération (supprimer une photo inappropriée) :
+
+```bash
+vercel env pull
+node scripts/remove-photo.mjs w561378888            # toutes les photos d'un sanctuaire
+node scripts/remove-photo.mjs https://…/photo.jpg   # une seule photo
+```
+
+Pour tester en local avec les fonctions serveur : `vercel dev`.

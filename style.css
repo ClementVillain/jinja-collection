@@ -156,6 +156,16 @@ button { font: inherit; cursor: pointer; }
 .popup-status { margin: 8px 0; font-size: 13px; color: var(--muted); }
 .popup-status.done { color: var(--vermilion); font-weight: 700; }
 .popup-actions { display: flex; gap: 6px; align-items: center; }
+.popup-upload {
+  display: block; margin-top: 10px; padding: 7px 10px; border: 1px dashed var(--line); border-radius: 8px;
+  font-size: 12px; color: var(--ink); text-align: center; cursor: pointer;
+}
+.popup-upload:hover { border-color: var(--vermilion); color: var(--vermilion); }
+.popup-upload.busy { opacity: 0.5; pointer-events: none; }
+.popup-upload-status { font-size: 12px; margin-top: 6px; color: var(--muted); }
+.popup-upload-status:empty { display: none; }
+.popup-upload-status.ok { color: #2e7d4f; }
+.popup-upload-status.error { color: var(--vermilion); }
 .popup-link { display: inline-block; margin-top: 10px; font-size: 12px; color: var(--muted) !important; }
 
 /* ---------- Modale ---------- */

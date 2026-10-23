@@ -110,6 +110,9 @@
       <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
       <div class="popup-name">${esc(s.name)}</div>${latin}${status}
       <div class="popup-actions">${actions}</div>
+      ${communityAvailable ? `<label class="popup-upload">📷 Partager ma photo de ce sanctuaire
+        <input type="file" accept="image/*" data-upload="${s.id}" hidden></label>
+      <div class="popup-upload-status" data-upload-status></div>` : ''}
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
     </div>`;
   }
@@ -243,12 +246,76 @@
     return photoCache.get(s.id);
   }
 
+  // ---------- Photos de la communauté ----------
+  // Photos envoyées par les visiteurs (Vercel Blob). Elles servent de couverture quand
+  // Wikimedia n'a pas de photo certaine du sanctuaire.
+  let communityPhotos = {};
+  let communityAvailable = false;
+  fetch('/api/community')
+    .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+    .then((photos) => { communityPhotos = photos; communityAvailable = true; })
+    .catch(() => { /* serveur local sans /api : pas de partage de photos */ });
+
+  function chooseCover(s, wiki) {
+    if (wiki && !wiki.nearby) return wiki;
+    const url = communityPhotos[s.id];
+    if (url) return { src: url, href: url, credit: 'Photo partagée par un visiteur ↗' };
+    return wiki;
+  }
+
+  // Redimensionne à 1600 px max et réencode en JPEG : fichier léger, et les métadonnées
+  // EXIF (dont la position GPS du téléphone) disparaissent au passage.
+  async function toJpeg(file) {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+  }
+
+  document.addEventListener('change', async (e) => {
+    const input = e.target.closest('input[data-upload]');
+    if (!input || !input.files[0]) return;
+    const s = byId.get(input.dataset.upload);
+    const popup = input.closest('.popup');
+    const status = popup.querySelector('[data-upload-status]');
+    const label = popup.querySelector('.popup-upload');
+    label.classList.add('busy');
+    status.className = 'popup-upload-status';
+    status.textContent = 'Envoi de la photo…';
+    try {
+      const jpeg = await toJpeg(input.files[0]);
+      const res = await fetch(`/api/upload?shrine=${encodeURIComponent(s.id)}`, {
+        // octet-stream : Vercel transmet alors le corps tel quel (Buffer) à la fonction.
+        method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: jpeg,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Erreur ${res.status}`);
+      communityPhotos[s.id] = body.url;
+      const cover = popup.querySelector('[data-cover]');
+      loadCover(s, cover);
+      const wiki = await photoFor(s).catch(() => null);
+      status.classList.add('ok');
+      status.textContent = wiki && !wiki.nearby
+        ? 'Merci ! Ta photo est enregistrée (la photo Wikimedia reste la couverture).'
+        : 'Merci ! Ta photo est maintenant la couverture de ce sanctuaire.';
+    } catch (err) {
+      status.classList.add('error');
+      status.textContent = "La photo n'a pas pu être envoyée : " + err.message;
+    } finally {
+      label.classList.remove('busy');
+      input.value = '';
+    }
+  });
+
   function showIllustration(s, el, label) {
     el.innerHTML = ShrineCard.renderScene(s) + `<span class="popup-cover-credit">${label}</span>`;
   }
 
   function loadCover(s, el) {
-    photoFor(s).then((photo) => {
+    photoFor(s).catch(() => null).then((wiki) => chooseCover(s, wiki)).then((photo) => {
       if (!el.isConnected) return;
       if (!photo) return showIllustration(s, el, 'Pas encore de photo · illustration');
       const img = new Image();
@@ -264,7 +331,7 @@
         if (link && photo.mapsUri) link.href = photo.mapsUri;
       };
       img.onerror = () => {
-        forgetPhoto(s.id);
+        if (!photo.credit) forgetPhoto(s.id);
         if (el.isConnected) showIllustration(s, el, 'Photo indisponible pour le moment');
       };
       img.src = photo.src;
