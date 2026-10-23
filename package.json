@@ -5,5 +5,9 @@
   "dependencies": {
     "@vercel/blob": "^2.8.2",
     "jose": "^6.2.13"
+  },
+  "devDependencies": {
+    "kuroshiro": "^1.2.0",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0"
   }
 }

@@ -2,6 +2,9 @@
 // via l'API Overpass et écrit un fichier compact dans data/shrines.json.
 // Usage : node scripts/fetch-shrines.mjs
 import { writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+
+const { createRomanizer } = createRequire(import.meta.url)('./romaji.cjs');
 
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
@@ -38,8 +41,17 @@ async function query() {
 }
 
 const { elements } = await query();
+const romanize = await createRomanizer();
 
 const round = (n) => Math.round(n * 1e5) / 1e5;
+
+// Romaji d'OSM s'il en est vraiment (certains contributeurs écrivent « Hakusan Shrine »),
+// sinon transcription à partir de la lecture kana d'OSM ou des kanji.
+async function romajiOf(t, name) {
+  const osm = t['name:ja-Latn'] || t['name:ja_rm'] || '';
+  if (osm && !/shrine|temple/i.test(osm)) return osm;
+  return romanize(name, t['name:ja-Hira'] || t['name:ja_kana'] || t['name:ja-Kana'] || t['name:ja-Hrkt']);
+}
 
 // Référence vers une photo : fichier Wikimedia Commons, entité Wikidata (propriété P18),
 // ou URL directe d'image. Sinon chaîne vide (l'appli cherchera une photo à proximité).
@@ -66,13 +78,14 @@ for (const el of elements) {
     round(lat),
     round(lon),
     photoRef(t),                                           // source de la photo de couverture
+    await romajiOf(t, name),                               // nom en romaji
   ]);
 }
 
 await writeFile(new URL('../data/shrines.json', import.meta.url), JSON.stringify({
   source: 'OpenStreetMap contributors (ODbL)',
   fetchedAt: new Date().toISOString(),
-  fields: ['id', 'name', 'nameLatin', 'lat', 'lon', 'photo'],
+  fields: ['id', 'name', 'nameLatin', 'lat', 'lon', 'photo', 'romaji'],
   shrines,
 }));
 console.log(`${shrines.length} sanctuaires nommés écrits (sur ${elements.length} trouvés).`);

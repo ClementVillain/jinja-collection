@@ -26,6 +26,8 @@
     persistVisits();
     scheduleSync();
   }
+  // Nom en lettres latines affiché sous les kanji : romaji, sinon nom anglais d'OSM.
+  const latinName = (s) => s.romaji || (s.nameLatin !== s.name ? s.nameLatin : '');
   const isVisited = (id) => Object.prototype.hasOwnProperty.call(visits, id);
 
   // Numéro de carte = ordre chronologique de visite.
@@ -106,7 +108,7 @@
 
   function popupHtml(s) {
     const done = isVisited(s.id);
-    const latin = s.nameLatin && s.nameLatin !== s.name ? `<div class="popup-latin">${esc(s.nameLatin)}</div>` : '';
+    const latin = latinName(s) ? `<div class="popup-latin">${esc(latinName(s))}</div>` : '';
     const gmaps = `https://www.google.com/maps/search/?api=1&query=${s.lat}%2C${s.lon}`;
     const status = done
       ? `<div class="popup-status done">✓ Visité le ${new Date(visits[s.id].date).toLocaleDateString('fr-FR')}</div>`
@@ -426,6 +428,7 @@
           <span class="item-icon">⛩</span>
           <span class="item-text">
             <span class="item-name">${esc(s.name)}</span>
+            ${latinName(s) ? `<span class="item-romaji">${esc(latinName(s))}</span>` : ''}
             <span class="item-sub">No. ${String(number).padStart(4, '0')} · ${new Date(visit.date).toLocaleDateString('fr-FR')}${visit.note ? ' · ' + esc(visit.note) : ''}</span>
           </span>
         </button>
@@ -462,7 +465,8 @@
           <span class="item-icon">${isVisited(s.id) ? '⛩' : '◦'}</span>
           <span class="item-text">
             <span class="item-name">${esc(s.name)}</span>
-            <span class="item-sub">${esc(s.nameLatin || '')}${isVisited(s.id) ? ' · visité ✓' : ''}</span>
+            ${latinName(s) ? `<span class="item-romaji">${esc(latinName(s))}</span>` : ''}
+            ${isVisited(s.id) ? '<span class="item-sub">visité ✓</span>' : ''}
           </span>
         </button>
       </li>`).join('') : '<li class="hint">Aucun sanctuaire trouvé.</li>';
@@ -807,10 +811,12 @@
 
 
   // ---------- Chargement ----------
-  fetch('data/shrines.json')
+  fetch('data/shrines.json?v=2') // version à changer quand les données sont régénérées
     .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then((data) => {
-      shrines = data.shrines.map(([id, name, nameLatin, lat, lon, photo]) => ({ id, name, nameLatin, lat, lon, photo, search: normalize(name + ' ' + nameLatin) }));
+      shrines = data.shrines.map(([id, name, nameLatin, lat, lon, photo, romaji = '']) => ({
+        id, name, nameLatin, lat, lon, photo, romaji, search: normalize(`${name} ${nameLatin} ${romaji}`),
+      }));
       shrines.forEach((s) => byId.set(s.id, s));
       const todo = [];
       for (const s of shrines) {

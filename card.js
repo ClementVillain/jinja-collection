@@ -166,7 +166,7 @@
     const uid = 'c' + (++renderCount) + '-';
     const date = visit && visit.date ? new Date(visit.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
     const num = String(number || 0).padStart(4, '0');
-    const latin = shrine.nameLatin && shrine.nameLatin !== shrine.name ? shrine.nameLatin : '';
+    const latin = shrine.romaji || (shrine.nameLatin && shrine.nameLatin !== shrine.name ? shrine.nameLatin : '');
 
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H + 120}" class="shrine-card" role="img" aria-label="Carte postale : ${esc(shrine.name)}">
   <defs>
