@@ -394,8 +394,8 @@
     const avatar = photo.by?.picture;
     return `<div class="cover-slide">
       <img class="cover-img" src="${esc(photo.src)}" alt="${esc(s.name)}" referrerpolicy="no-referrer" draggable="false">
-      <a class="popup-cover-credit${avatar ? ' with-avatar' : ''}" href="${esc(photo.href)}" target="_blank" rel="noopener">${credit}</a>
-      ${avatar ? `<img class="popup-cover-avatar" src="${esc(avatar)}" alt="${esc(photo.by.name || '')}" title="Photo partagée par ${esc(photo.by.name || 'un visiteur')}" referrerpolicy="no-referrer" draggable="false">` : ''}
+      <a class="popup-cover-credit${avatar ? ' with-avatar' : ''}" href="${esc(photo.href)}" target="_blank" rel="noopener">${avatar
+        ? `<img class="popup-cover-avatar" src="${esc(avatar)}" alt="" referrerpolicy="no-referrer" draggable="false">` : ''}${credit}</a>
     </div>`;
   }
 

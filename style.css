@@ -243,9 +243,11 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
   background: rgba(255, 255, 255, 0.55); box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
 }
 .cover-dots button.on { background: #fff; }
+/* Avatar de l'auteur groupé avec « Photo de … » dans la même pastille. */
+.popup-cover-credit.with-avatar { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 2px; border-radius: 12px; }
 .popup-cover img.popup-cover-avatar {
-  position: absolute; left: 8px; top: 8px; width: 28px; height: 28px; border-radius: 50%;
-  border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4); object-fit: cover; background: var(--paper-2);
+  width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #fff;
+  object-fit: cover; background: var(--paper-2); flex-shrink: 0;
 }
 .popup-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 18px; color: var(--ink); }
 .popup-latin { color: var(--ink); opacity: 0.55; font-size: 12px; letter-spacing: 0.02em; margin-top: 1px; }
