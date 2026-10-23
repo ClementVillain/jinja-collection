@@ -1,6 +1,8 @@
 (function () {
   const STORAGE_KEY = 'jinja-collection:visits';
   const DELETED_KEY = 'jinja-collection:deleted';
+  const WISH_KEY = 'jinja-collection:wishlist';
+  const WISH_DELETED_KEY = 'jinja-collection:wish-deleted';
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -11,6 +13,9 @@
   let visits = loadJson(STORAGE_KEY);
   // Sanctuaires retirés (date du retrait) : la synchronisation ne doit pas les faire revenir.
   let deleted = loadJson(DELETED_KEY);
+  // Liste « À visiter » : { id: { addedAt } }, et dates de retrait pour la synchronisation.
+  let wishlist = loadJson(WISH_KEY);
+  let wishDeleted = loadJson(WISH_DELETED_KEY);
 
   function loadJson(key) {
     try { return JSON.parse(localStorage.getItem(key)) || {}; }
@@ -20,6 +25,8 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(visits));
       localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
+      localStorage.setItem(WISH_KEY, JSON.stringify(wishlist));
+      localStorage.setItem(WISH_DELETED_KEY, JSON.stringify(wishDeleted));
     } catch (err) { alert("Impossible d'enregistrer la visite : " + err.message); }
   }
   function saveVisits() {
@@ -29,6 +36,7 @@
   // Nom en lettres latines affiché sous les kanji : romaji, sinon nom anglais d'OSM.
   const latinName = (s) => s.romaji || (s.nameLatin !== s.name ? s.nameLatin : '');
   const isVisited = (id) => Object.prototype.hasOwnProperty.call(visits, id);
+  const isWished = (id) => !isVisited(id) && Object.prototype.hasOwnProperty.call(wishlist, id);
 
   // Numéro de carte = ordre chronologique de visite.
   function visitedOrdered() {
@@ -67,6 +75,7 @@
   map.on('locationerror', () => alert("Localisation impossible. Autorise l'accès à ta position dans le navigateur."));
 
   const iconTodo = L.divIcon({ className: 'pin pin-todo', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8] });
+  const iconWish = L.divIcon({ className: 'pin pin-wish', html: '<span>★</span>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
   const iconDone = L.divIcon({ className: 'pin pin-done', html: '<span>⛩</span>', iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
 
   const cluster = L.markerClusterGroup({
@@ -82,11 +91,14 @@
   });
   // Les sanctuaires visités ne sont jamais regroupés : ils restent visibles à tout niveau de zoom.
   const visitedLayer = L.layerGroup();
+  // Idem pour la liste « À visiter » : étoiles dorées toujours visibles.
+  const wishLayer = L.layerGroup();
   map.addLayer(cluster);
+  map.addLayer(wishLayer);
   map.addLayer(visitedLayer);
 
   function makeMarker(s) {
-    const m = L.marker([s.lat, s.lon], { icon: isVisited(s.id) ? iconDone : iconTodo, title: s.name });
+    const m = L.marker([s.lat, s.lon], { icon: isVisited(s.id) ? iconDone : isWished(s.id) ? iconWish : iconTodo, title: s.name });
     m.shrineId = s.id;
     m.bindPopup(() => popupHtml(s), { minWidth: 260, maxWidth: 260 });
     markers.set(s.id, m);
@@ -95,28 +107,29 @@
 
   function placeMarker(id) {
     const m = markers.get(id);
-    if (isVisited(id)) {
-      cluster.removeLayer(m);
-      m.setIcon(iconDone).setZIndexOffset(1000);
-      visitedLayer.addLayer(m);
-    } else {
-      visitedLayer.removeLayer(m);
-      m.setIcon(iconTodo).setZIndexOffset(0);
-      cluster.addLayer(m);
-    }
+    if (!m) return;
+    cluster.removeLayer(m);
+    wishLayer.removeLayer(m);
+    visitedLayer.removeLayer(m);
+    if (isVisited(id)) visitedLayer.addLayer(m.setIcon(iconDone).setZIndexOffset(1000));
+    else if (isWished(id)) wishLayer.addLayer(m.setIcon(iconWish).setZIndexOffset(500));
+    else cluster.addLayer(m.setIcon(iconTodo).setZIndexOffset(0));
   }
 
   function popupHtml(s) {
     const done = isVisited(s.id);
     const latin = latinName(s) ? `<div class="popup-latin">${esc(latinName(s))}</div>` : '';
     const gmaps = `https://www.google.com/maps/search/?api=1&query=${s.lat}%2C${s.lon}`;
+    const wished = isWished(s.id);
     const status = done
       ? `<div class="popup-status done">✓ Visité le ${new Date(visits[s.id].date).toLocaleDateString('fr-FR')}</div>`
+      : wished ? '<div class="popup-status wish">★ Dans ta liste « À visiter »</div>'
       : '<div class="popup-status">Pas encore visité</div>';
     const actions = done
       ? `<button class="primary" data-action="card" data-id="${s.id}">Voir ma carte</button>
          <button class="ghost small" data-action="unvisit" data-id="${s.id}">Retirer</button>`
-      : `<button class="primary" data-action="visit" data-id="${s.id}">J'y suis allé ⛩</button>`;
+      : `<button class="primary" data-action="visit" data-id="${s.id}">J'y suis allé ⛩</button>
+         <button class="ghost small wish-btn${wished ? ' on' : ''}" data-action="wish" data-id="${s.id}">${wished ? '★ Retirer de la liste' : '☆ À visiter'}</button>`;
     return `<div class="popup">
       <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
       <div class="popup-name">${esc(s.name)}</div>${latin}${status}
@@ -388,9 +401,11 @@
     const m = markers.get(id);
     if (!s || !m) return;
     if (window.matchMedia('(max-width: 760px)').matches) setCollapsed(true);
-    if (isVisited(id)) {
-      map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), zoom), { duration: 0.8 });
+    if (isVisited(id) || isWished(id)) {
+      // Déjà centrée dessus : la carte ne bougerait pas et « moveend » n'arriverait jamais.
+      if (map.getZoom() >= zoom && map.getCenter().distanceTo([s.lat, s.lon]) < 20) { m.openPopup(); return; }
       map.once('moveend', () => m.openPopup());
+      map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), zoom), { duration: 0.8 });
     } else {
       cluster.zoomToShowLayer(m, () => m.openPopup());
     }
@@ -401,6 +416,8 @@
     const now = new Date().toISOString();
     visits[id] = { date: now, note: '', updatedAt: now };
     delete deleted[id];
+    // Visité : il sort de la liste « À visiter ».
+    if (wishlist[id]) { delete wishlist[id]; wishDeleted[id] = now; }
     saveVisits();
     map.closePopup();
     placeMarker(id);
@@ -419,6 +436,19 @@
     refreshPanels();
   }
 
+  function toggleWish(id) {
+    const now = new Date().toISOString();
+    if (wishlist[id]) { delete wishlist[id]; wishDeleted[id] = now; }
+    else { wishlist[id] = { addedAt: now }; delete wishDeleted[id]; }
+    // Changer de couche ferme la popup du marqueur : on la rouvre, à jour.
+    const m = markers.get(id);
+    const wasOpen = m?.isPopupOpen();
+    saveVisits();
+    placeMarker(id);
+    refreshPanels();
+    if (wasOpen) m.openPopup();
+  }
+
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -427,6 +457,7 @@
     else if (action === 'unvisit') unmarkVisited(id);
     else if (action === 'card') openCard(id);
     else if (action === 'locate') focusShrine(id);
+    else if (action === 'wish') toggleWish(id);
     else if (action === 'login-hint') showAccount();
   });
 
@@ -441,6 +472,7 @@
     const ordered = visitedOrdered();
     const n = ordered.length;
     $('#visited-count').textContent = n;
+    renderWishlist();
     $('#progress').textContent = `${n.toLocaleString('fr-FR')} / ${shrines.length.toLocaleString('fr-FR')} sanctuaires visités`;
     $('#progress-fill').style.width = shrines.length ? Math.max(n ? 1.5 : 0, (n / shrines.length) * 100) + '%' : '0';
 
@@ -469,6 +501,28 @@
     renderSearch();
   }
 
+  // ---------- Liste « À visiter » ----------
+  function renderWishlist() {
+    const items = Object.entries(wishlist)
+      .filter(([id]) => byId.has(id) && !isVisited(id))
+      .sort((a, b) => b[1].addedAt.localeCompare(a[1].addedAt))
+      .map(([id, w]) => ({ s: byId.get(id), w }));
+    $('#wish-count').textContent = items.length;
+    $('#wish-empty').hidden = items.length > 0;
+    $('#wish-list').innerHTML = items.map(({ s, w }) => `
+      <li class="item wished">
+        <button class="item-main" data-action="locate" data-id="${s.id}">
+          <span class="item-icon">★</span>
+          <span class="item-text">
+            <span class="item-name">${esc(s.name)}</span>
+            ${latinName(s) ? `<span class="item-romaji">${esc(latinName(s))}</span>` : ''}
+            <span class="item-sub">Ajouté le ${new Date(w.addedAt).toLocaleDateString('fr-FR')}</span>
+          </span>
+        </button>
+        <button class="ghost small" data-action="wish" data-id="${s.id}" title="Retirer de la liste">✕</button>
+      </li>`).join('');
+  }
+
   // ---------- Recherche ----------
   // Ignore casse, accents, espaces et tirets : « fushimi inari taisha » trouve « Fushimi Inari-taisha ».
   const normalize = (str) => str.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[\s\-_'’.・]/g, '');
@@ -487,7 +541,7 @@
     list.innerHTML = results.length ? results.map((s) => `
       <li class="item ${isVisited(s.id) ? 'visited' : ''}">
         <button class="item-main" data-action="locate" data-id="${s.id}">
-          <span class="item-icon">${isVisited(s.id) ? '⛩' : '◦'}</span>
+          <span class="item-icon">${isVisited(s.id) ? '⛩' : isWished(s.id) ? '★' : '◦'}</span>
           <span class="item-text">
             <span class="item-name">${esc(s.name)}</span>
             ${latinName(s) ? `<span class="item-romaji">${esc(latinName(s))}</span>` : ''}
@@ -599,7 +653,7 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
   $('#export-btn').addEventListener('click', () => {
-    const data = { app: 'jinja-collection', exportedAt: new Date().toISOString(), visits };
+    const data = { app: 'jinja-collection', exportedAt: new Date().toISOString(), visits, wishlist };
     download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `jinja-collection-${new Date().toISOString().slice(0, 10)}.json`);
   });
   $('#import-input').addEventListener('change', async (e) => {
@@ -616,9 +670,17 @@
         added++;
         if (markers.has(id)) placeMarker(id);
       }
+      let wished = 0;
+      for (const [id, w] of Object.entries(data.wishlist || {})) {
+        if (!w || typeof w.addedAt !== 'string' || wishlist[id] || isVisited(id)) continue;
+        wishlist[id] = { addedAt: w.addedAt };
+        delete wishDeleted[id];
+        wished++;
+        if (markers.has(id)) placeMarker(id);
+      }
       saveVisits();
       refreshPanels();
-      alert(`${added} visite(s) restaurée(s).`);
+      alert(`${added} visite(s) et ${wished} sanctuaire(s) « À visiter » restauré(s).`);
     } catch (err) {
       alert('Fichier de sauvegarde invalide : ' + err.message);
     }
@@ -695,10 +757,14 @@
   }
 
   function applyMerged(merged) {
-    const changed = new Set([...Object.keys(visits), ...Object.keys(merged.visits)]
-      .filter((id) => !!visits[id] !== !!merged.visits[id]));
+    const changed = new Set([
+      ...[...Object.keys(visits), ...Object.keys(merged.visits)].filter((id) => !!visits[id] !== !!merged.visits[id]),
+      ...[...Object.keys(wishlist), ...Object.keys(merged.wishlist)].filter((id) => !!wishlist[id] !== !!merged.wishlist[id]),
+    ]);
     visits = merged.visits;
     deleted = merged.deleted;
+    wishlist = merged.wishlist;
+    wishDeleted = merged.wishDeleted;
     persistVisits();
     changed.forEach((id) => { if (markers.has(id)) placeMarker(id); });
     refreshPanels();
@@ -717,7 +783,7 @@
     setSyncStatus('Synchronisation…');
     syncing = (async () => {
       const { state: remote } = await syncApi('GET');
-      const merged = JinjaMerge.merge({ visits, deleted }, remote);
+      const merged = JinjaMerge.merge({ visits, deleted, wishlist, wishDeleted }, remote);
       applyMerged(merged);
       if (!JinjaMerge.same(merged, remote)) await syncApi('PUT', merged);
       setSyncStatus('Synchronisé ✓');
@@ -856,6 +922,7 @@
       for (const s of shrines) {
         const m = makeMarker(s);
         if (isVisited(s.id)) visitedLayer.addLayer(m.setZIndexOffset(1000));
+        else if (isWished(s.id)) wishLayer.addLayer(m.setZIndexOffset(500));
         else todo.push(m);
       }
       cluster.addLayers(todo);

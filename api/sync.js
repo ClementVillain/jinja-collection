@@ -1,4 +1,4 @@
-// GET /api/sync  → { state, savedAt } du compte connecté (state = { visits, deleted })
+// GET /api/sync  → { state, savedAt } du compte connecté (state = { visits, deleted, wishlist, wishDeleted })
 // PUT /api/sync  → enregistre l'état fusionné envoyé par le navigateur
 const { verifyGoogleUser } = require('../lib/auth');
 const { loadState, saveState } = require('../lib/userdata');
@@ -21,7 +21,14 @@ function cleanState(input) {
   for (const [id, d] of Object.entries(input?.deleted || {})) {
     if (ID.test(id) && isDate(d)) deleted[id] = d;
   }
-  return { visits, deleted };
+  const wishlist = {}, wishDeleted = {};
+  for (const [id, w] of Object.entries(input?.wishlist || {})) {
+    if (ID.test(id) && w && isDate(w.addedAt)) wishlist[id] = { addedAt: w.addedAt };
+  }
+  for (const [id, d] of Object.entries(input?.wishDeleted || {})) {
+    if (ID.test(id) && isDate(d)) wishDeleted[id] = d;
+  }
+  return { visits, deleted, wishlist, wishDeleted };
 }
 
 module.exports = async (req, res) => {
@@ -30,7 +37,7 @@ module.exports = async (req, res) => {
     const user = await verifyGoogleUser(req);
     if (req.method === 'GET') {
       const saved = await loadState(user.sub);
-      return res.status(200).json(saved || { state: { visits: {}, deleted: {} }, savedAt: null });
+      return res.status(200).json(saved || { state: { visits: {}, deleted: {}, wishlist: {}, wishDeleted: {} }, savedAt: null });
     }
     if (req.method === 'PUT') {
       const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});

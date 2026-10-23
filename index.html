@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <aside class="panel">
@@ -33,6 +33,7 @@
 
     <nav class="tabs" role="tablist">
       <button class="tab active" data-tab="explore" role="tab">Explorer</button>
+      <button class="tab" data-tab="wish" role="tab">À visiter <span id="wish-count" class="badge badge-gold">0</span></button>
       <button class="tab" data-tab="visited" role="tab">Visités <span id="visited-count" class="badge">0</span></button>
       <button class="tab" data-tab="collection" role="tab">Collection</button>
     </nav>
@@ -41,6 +42,11 @@
       <input id="search" type="search" placeholder="Rechercher un sanctuaire (ex : 伏見稲荷, Meiji…)" autocomplete="off">
       <ul id="search-results" class="list"></ul>
       <p class="hint" id="search-hint">Clique sur un torii gris de la carte, ou cherche un sanctuaire par son nom.</p>
+    </section>
+
+    <section class="tab-panel" id="tab-wish">
+      <ul id="wish-list" class="list"></ul>
+      <p class="hint empty" id="wish-empty">Ta liste est vide. Ouvre un sanctuaire sur la carte et clique sur « ☆ À visiter » pour le garder pour plus tard.</p>
     </section>
 
     <section class="tab-panel" id="tab-visited">
@@ -79,8 +85,8 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
-  <script src="merge.js?v=15"></script>
-  <script src="card.js?v=15"></script>
-  <script src="app.js?v=15"></script>
+  <script src="merge.js?v=18"></script>
+  <script src="card.js?v=18"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
