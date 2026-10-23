@@ -282,7 +282,7 @@
     const s = byId.get(id);
     const m = markers.get(id);
     if (!s || !m) return;
-    if (window.matchMedia('(max-width: 760px)').matches) document.body.classList.add('panel-collapsed');
+    if (window.matchMedia('(max-width: 760px)').matches) setCollapsed(true);
     if (isVisited(id)) {
       map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), zoom), { duration: 0.8 });
       map.once('moveend', () => m.openPopup());
@@ -325,7 +325,7 @@
   document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + tab.dataset.tab));
-    document.body.classList.remove('panel-collapsed');
+    if (document.body.classList.contains('panel-collapsed')) setCollapsed(false);
   }));
 
   function refreshPanels() {
@@ -457,11 +457,47 @@
   });
 
   // ---------- Mobile : réduire / déplier le panneau ----------
-  $('.brand').addEventListener('click', () => {
-    if (window.matchMedia('(max-width: 760px)').matches) document.body.classList.toggle('panel-collapsed');
-  });
+  // Sur mobile, le panneau est un volet : on le glisse vers le bas pour libérer la carte,
+  // vers le haut pour le rouvrir, ou on tape sur sa barre pour basculer.
+  const SHEET_KEY = 'jinja-collection:sheet-collapsed';
+  const isMobile = () => window.matchMedia('(max-width: 760px)').matches;
+  const panel = $('.panel');
+  function setCollapsed(collapsed) {
+    document.body.classList.toggle('panel-collapsed', collapsed);
+    $('.sheet-toggle').setAttribute('aria-label', collapsed ? 'Déplier le menu' : 'Replier le menu');
+    try { localStorage.setItem(SHEET_KEY, collapsed ? '1' : '0'); } catch { /* ignore */ }
+  }
+  try { if (isMobile() && localStorage.getItem(SHEET_KEY) === '1') setCollapsed(true); } catch { /* ignore */ }
 
-  document.querySelector('.panel').addEventListener('transitionend', () => map.invalidateSize());
+  let drag = null;
+  $('.sheet-grab').addEventListener('pointerdown', (e) => {
+    if (!isMobile()) return;
+    const peek = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek'));
+    const collapsedOffset = panel.offsetHeight - peek;
+    const start = document.body.classList.contains('panel-collapsed') ? collapsedOffset : 0;
+    drag = { y: e.clientY, start, max: collapsedOffset, dy: 0 };
+    $('.sheet-grab').setPointerCapture(e.pointerId);
+  });
+  $('.sheet-grab').addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    drag.dy = e.clientY - drag.y;
+    if (Math.abs(drag.dy) < 6) return;
+    panel.classList.add('dragging');
+    panel.style.transform = `translateY(${Math.min(drag.max, Math.max(0, drag.start + drag.dy))}px)`;
+  });
+  function endDrag() {
+    if (!drag) return;
+    const { dy } = drag;
+    drag = null;
+    panel.classList.remove('dragging');
+    panel.style.transform = '';
+    if (Math.abs(dy) < 6) setCollapsed(!document.body.classList.contains('panel-collapsed'));
+    else if (dy > 50) setCollapsed(true);
+    else if (dy < -50) setCollapsed(false);
+  }
+  $('.sheet-grab').addEventListener('pointerup', endDrag);
+  $('.sheet-grab').addEventListener('pointercancel', endDrag);
+
 
   // ---------- Chargement ----------
   fetch('data/shrines.json')

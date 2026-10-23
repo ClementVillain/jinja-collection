@@ -8,17 +8,23 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <aside class="panel">
-    <header class="brand">
-      <span class="brand-mark">⛩</span>
-      <div>
-        <h1>Jinja Collection</h1>
-        <p id="progress">Chargement des sanctuaires…</p>
-      </div>
-    </header>
+    <div class="sheet-grab">
+      <div class="sheet-handle"></div>
+      <header class="brand">
+        <span class="brand-mark">⛩</span>
+        <div>
+          <h1>Jinja Collection</h1>
+          <p id="progress">Chargement des sanctuaires…</p>
+        </div>
+        <button class="sheet-toggle" type="button" aria-label="Replier le menu">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </header>
+    </div>
     <div class="progress-bar"><div id="progress-fill"></div></div>
 
     <nav class="tabs" role="tablist">
@@ -69,7 +75,7 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
-  <script src="card.js?v=4"></script>
-  <script src="app.js?v=4"></script>
+  <script src="card.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

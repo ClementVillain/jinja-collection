@@ -181,17 +181,40 @@ button { font: inherit; cursor: pointer; }
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 
-/* ---------- Mobile ---------- */
+/* ---------- Mobile : volet coulissant par-dessus la carte ---------- */
+.sheet-handle, .sheet-toggle { display: none; }
+
 @media (max-width: 760px) {
-  body { flex-direction: column-reverse; }
-  .panel { width: 100%; height: 48%; border-right: 0; border-top: 1px solid var(--line); transition: height 0.25s; }
-  .brand { padding: 10px 16px 6px; cursor: pointer; }
-  .brand-mark { width: 36px; height: 36px; font-size: 18px; }
+  :root { --sheet-peek: 74px; }
+  body { display: block; }
+  #map { position: fixed; inset: 0; height: auto; }
+  .panel {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    width: 100%; height: 64vh; height: 64dvh;
+    border-right: 0; border-radius: 18px 18px 0 0;
+    box-shadow: 0 -6px 24px rgba(40, 25, 15, 0.18);
+    padding-bottom: env(safe-area-inset-bottom);
+    transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: transform;
+  }
+  body.panel-collapsed .panel {
+    transform: translateY(calc(100% - var(--sheet-peek) - env(safe-area-inset-bottom)));
+  }
+  .panel.dragging { transition: none; }
+  .sheet-grab { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .sheet-handle { display: block; width: 42px; height: 5px; margin: 8px auto 0; border-radius: 3px; background: #d8ccbb; }
+  .brand { padding: 6px 12px 8px 16px; }
+  .brand-mark { width: 36px; height: 36px; font-size: 18px; border-radius: 10px; }
   .brand h1 { font-size: 18px; }
-  .progress-bar { margin: 2px 16px 8px; }
-  body.panel-collapsed .panel { height: 76px; }
-  body.panel-collapsed .panel > :not(.brand):not(.progress-bar) { display: none; }
-  #map { height: auto; }
+  .sheet-toggle {
+    display: grid; place-items: center; margin-left: auto; width: 38px; height: 38px;
+    border: 0; border-radius: 50%; background: var(--paper-2); color: var(--ink);
+    transition: transform 0.32s;
+  }
+  body.panel-collapsed .sheet-toggle { transform: rotate(180deg); }
+  .progress-bar { margin: 0 16px 8px; }
+  /* Garde les contrôles Leaflet du bas au-dessus de la barre repliée. */
+  .leaflet-bottom { bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom)); }
 }
 
 .leaflet-container a.leaflet-popup-close-button {
