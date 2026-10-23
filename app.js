@@ -596,6 +596,27 @@
     e.target.value = '';
   });
 
+  // ---------- Ordinateur : replier le panneau vers la gauche ----------
+  const SIDE_KEY = 'jinja-collection:panel-hidden';
+  function setPanelHidden(hidden) {
+    document.body.classList.toggle('panel-hidden', hidden);
+    const label = hidden ? 'Afficher le menu' : 'Masquer le menu';
+    $('.panel-edge').setAttribute('aria-label', label);
+    $('.panel-edge').title = label;
+    try { localStorage.setItem(SIDE_KEY, hidden ? '1' : '0'); } catch { /* ignore */ }
+  }
+  try {
+    if (localStorage.getItem(SIDE_KEY) === '1') {
+      setPanelHidden(true);
+      setTimeout(() => map.invalidateSize(), 400);
+    }
+  } catch { /* ignore */ }
+  $('.panel-edge').addEventListener('click', () => setPanelHidden(!document.body.classList.contains('panel-hidden')));
+  // La carte change de largeur : Leaflet doit recalculer sa taille à la fin de l'animation.
+  $('.panel').addEventListener('transitionend', (e) => {
+    if (e.target === e.currentTarget && e.propertyName === 'margin-left') map.invalidateSize();
+  });
+
   // ---------- Compte Google et synchronisation ----------
   // « Se connecter avec Google » donne un jeton d'identité (valable 1 h) que le serveur vérifie.
   // Les visites restent aussi dans le navigateur : la synchro fusionne les deux (voir merge.js).

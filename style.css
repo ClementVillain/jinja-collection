@@ -31,7 +31,22 @@ button { font: inherit; cursor: pointer; }
   background: var(--paper);
   border-right: 1px solid var(--line);
   z-index: 1000;
+  position: relative;
+  transition: margin-left 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+
+/* Ordinateur : languette au bord droit du panneau pour le replier vers la gauche. */
+.panel-edge {
+  position: absolute; top: 50%; right: -26px; width: 26px; height: 56px; margin-top: -28px;
+  display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--line); border-left: 0; border-radius: 0 10px 10px 0;
+  background: var(--paper); color: var(--ink);
+  box-shadow: 3px 0 8px rgba(40, 25, 15, 0.12);
+}
+.panel-edge:hover { color: var(--vermilion); }
+.panel-edge svg { transition: transform 0.32s; }
+body.panel-hidden .panel { margin-left: calc(-1 * var(--panel-w)); }
+body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .brand { display: flex; gap: 12px; align-items: center; padding: 18px 20px 10px; }
 .brand-mark {
   width: 46px; height: 46px; border-radius: 12px;
@@ -220,6 +235,8 @@ button { font: inherit; cursor: pointer; }
     transform: translateY(calc(100% - var(--sheet-peek) - env(safe-area-inset-bottom)));
   }
   .panel.dragging { transition: none; }
+  .panel-edge { display: none; }
+  body.panel-hidden .panel { margin-left: 0; }
   .sheet-grab { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
   .sheet-handle { display: block; width: 42px; height: 5px; margin: 8px auto 0; border-radius: 3px; background: #d8ccbb; }
   .brand { padding: 6px 12px 8px 16px; }
