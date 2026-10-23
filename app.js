@@ -107,7 +107,7 @@
          <button class="ghost small" data-action="unvisit" data-id="${s.id}">Retirer</button>`
       : `<button class="primary" data-action="visit" data-id="${s.id}">J'y suis allé ⛩</button>`;
     return `<div class="popup">
-      <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"></div></div>
+      <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
       <div class="popup-name">${esc(s.name)}</div>${latin}${status}
       <div class="popup-actions">${actions}</div>
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
@@ -115,34 +115,65 @@
   }
 
   // ---------- Photos de couverture ----------
-  // Ordre de recherche : photo liée dans OpenStreetMap (Commons, Wikidata P18, URL),
-  // puis photo Wikimedia Commons prise à moins de 200 m dont le titre évoque un sanctuaire,
+  // Ordre de recherche : Google Maps (si la clé est configurée sur Vercel), photo liée dans
+  // OpenStreetMap (Commons, Wikidata P18, URL), photo Commons géolocalisée à moins de 500 m
+  // dont le titre évoque le sanctuaire, recherche Commons par nom à moins de 1,5 km,
   // sinon l'illustration générée de la carte postale.
+  // Les résultats sont gardés dans le navigateur : chaque sanctuaire n'est cherché qu'une fois.
   const photoCache = new Map();
+  const PHOTO_STORE_KEY = 'jinja-collection:photos';
+  const PHOTO_TTL = 30 * 24 * 3600 * 1000;
+  // Wikimedia ne sert plus que des largeurs de miniature standard (500, 960…) : 520 renvoie une erreur 400.
+  const THUMB_WIDTH = 500;
   const COMMONS_API = 'https://commons.wikimedia.org/w/api.php?format=json&origin=*';
-  const SHRINE_WORDS = /神社|神宮|大社|宮|社|鳥居|稲荷|八幡|jinja|jingu|jingū|shrine|taisha|torii|inari|hachiman/i;
+  const IMAGE_INFO = `prop=imageinfo&iiprop=url&iiurlwidth=${THUMB_WIDTH}`;
+  const SHRINE_WORDS = /神社|神宮|大社|宮|社|鳥居|稲荷|八幡|天満|天神|権現|jinja|jingu|jingū|shrine|taisha|torii|inari|hachiman|tenmang|tenjin|gongen/i;
+  const IMAGE_FILE = /\.(jpe?g|png|webp)$/i;
+
+  let photoStore = {};
+  try { photoStore = JSON.parse(localStorage.getItem(PHOTO_STORE_KEY)) || {}; } catch { photoStore = {}; }
+  function rememberPhoto(id, photo) {
+    photoStore[id] = { photo, t: Date.now() };
+    try { localStorage.setItem(PHOTO_STORE_KEY, JSON.stringify(photoStore)); } catch { /* stockage plein : tant pis */ }
+  }
+  function forgetPhoto(id) {
+    photoCache.delete(id);
+    delete photoStore[id];
+    try { localStorage.setItem(PHOTO_STORE_KEY, JSON.stringify(photoStore)); } catch { /* ignore */ }
+  }
+
+  // Wikimedia limite le nombre de requêtes : en cas de 429, on attend puis on réessaie.
+  async function getJson(url, tries = 3) {
+    for (let i = 0; i < tries; i++) {
+      const res = await fetch(url);
+      if (res.ok) return res.json();
+      if (res.status !== 429 || i === tries - 1) throw new Error(`HTTP ${res.status}`);
+      const wait = Number(res.headers.get('Retry-After')) * 1000 || 1500 * (i + 1) ** 2;
+      await new Promise((r) => setTimeout(r, Math.min(wait, 8000)));
+    }
+  }
+
+  const fromPage = (p, nearby) => ({ src: p.imageinfo[0].thumburl || p.imageinfo[0].url, href: p.imageinfo[0].descriptionurl, nearby });
 
   async function commonsFile(title) {
-    const url = `${COMMONS_API}&action=query&prop=imageinfo&iiprop=url&iiurlwidth=520&titles=${encodeURIComponent(title)}`;
-    const page = Object.values((await (await fetch(url)).json()).query?.pages || {})[0];
-    const info = page?.imageinfo?.[0];
-    return info ? { src: info.thumburl || info.url, href: info.descriptionurl, nearby: false } : null;
+    const page = Object.values((await getJson(`${COMMONS_API}&action=query&${IMAGE_INFO}&titles=${encodeURIComponent(title)}`)).query?.pages || {})[0];
+    return page?.imageinfo?.[0] ? fromPage(page, false) : null;
   }
 
   async function wikidataImage(qid) {
     const url = `https://www.wikidata.org/w/api.php?format=json&origin=*&action=wbgetclaims&property=P18&entity=${qid}`;
-    const file = (await (await fetch(url)).json()).claims?.P18?.[0]?.mainsnak?.datavalue?.value;
+    const file = (await getJson(url)).claims?.P18?.[0]?.mainsnak?.datavalue?.value;
     return file ? commonsFile('File:' + file) : null;
   }
 
   async function nearbyImage(s) {
-    const url = `${COMMONS_API}&action=query&generator=geosearch&ggsnamespace=6&ggsradius=200&ggslimit=20`
-      + `&ggscoord=${s.lat}|${s.lon}&prop=imageinfo&iiprop=url&iiurlwidth=520`;
-    const pages = Object.values((await (await fetch(url)).json()).query?.pages || {});
-    const core = s.name.replace(/(神社|神宮|大社|社|宮)$/, '');
+    const url = `${COMMONS_API}&action=query&generator=geosearch&ggsnamespace=6&ggsradius=500&ggslimit=40`
+      + `&ggscoord=${s.lat}|${s.lon}&${IMAGE_INFO}`;
+    const pages = Object.values((await getJson(url)).query?.pages || {});
+    const core = s.name.replace(/(神社|神宮|大社|天満宮|社|宮)$/, '');
     const latin = normalize(s.nameLatin || '');
     const scored = pages
-      .filter((p) => p.imageinfo?.[0] && /\.(jpe?g|png|webp)$/i.test(p.title))
+      .filter((p) => p.imageinfo?.[0] && IMAGE_FILE.test(p.title))
       .map((p) => {
         const t = p.title;
         let score = SHRINE_WORDS.test(t) ? 1 : 0;
@@ -152,9 +183,19 @@
       })
       .filter((x) => x.score > 0)
       .sort((a, b) => b.score - a.score || a.p.index - b.p.index);
-    const best = scored[0]?.p;
-    if (!best) return null;
-    return { src: best.imageinfo[0].thumburl, href: best.imageinfo[0].descriptionurl, nearby: scored[0].score < 3 };
+    return scored[0] ? fromPage(scored[0].p, scored[0].score < 3) : null;
+  }
+
+  // Recherche plein texte Commons : fichiers dont le titre ou la description cite le nom,
+  // géolocalisés à moins de 1,5 km (attrape les photos mal placées sur la carte).
+  async function namedImage(s) {
+    const query = `${s.name} nearcoord:1500m,${s.lat},${s.lon}`;
+    const url = `${COMMONS_API}&action=query&generator=search&gsrnamespace=6&gsrlimit=5`
+      + `&gsrsearch=${encodeURIComponent(query)}&${IMAGE_INFO}`;
+    const pages = Object.values((await getJson(url)).query?.pages || {})
+      .filter((p) => p.imageinfo?.[0] && IMAGE_FILE.test(p.title))
+      .sort((a, b) => a.index - b.index);
+    return pages[0] ? fromPage(pages[0], false) : null;
   }
 
   // Photo Google Maps via la fonction serveur /api/photo (clé API cachée côté Vercel).
@@ -183,31 +224,52 @@
     if (ref.startsWith('File:')) photo = await commonsFile(ref);
     else if (/^Q\d+$/.test(ref)) photo = await wikidataImage(ref);
     else if (ref.startsWith('https://')) photo = { src: ref, href: ref, nearby: false };
-    return photo || nearbyImage(s);
+    return photo || (await nearbyImage(s)) || namedImage(s);
+  }
+
+  function photoFor(s) {
+    if (!photoCache.has(s.id)) {
+      const saved = photoStore[s.id];
+      // Les photos Google ne sont pas gardées : leurs URL expirent.
+      const promise = saved && Date.now() - saved.t < PHOTO_TTL
+        ? Promise.resolve(saved.photo)
+        : findPhoto(s).then((photo) => {
+          if (!photo?.mapsUri) rememberPhoto(s.id, photo);
+          return photo;
+        });
+      // Échec réseau ou limite Wikimedia : on ne mémorise rien, on réessaiera à la prochaine ouverture.
+      photoCache.set(s.id, promise.catch((err) => { photoCache.delete(s.id); throw err; }));
+    }
+    return photoCache.get(s.id);
+  }
+
+  function showIllustration(s, el, label) {
+    el.innerHTML = ShrineCard.renderScene(s) + `<span class="popup-cover-credit">${label}</span>`;
   }
 
   function loadCover(s, el) {
-    if (!photoCache.has(s.id)) photoCache.set(s.id, findPhoto(s).catch(() => null));
-    photoCache.get(s.id).then((photo) => {
+    photoFor(s).then((photo) => {
       if (!el.isConnected) return;
-      if (!photo) {
-        el.innerHTML = ShrineCard.renderScene(s) + '<span class="popup-cover-credit">Pas encore de photo · illustration</span>';
-        return;
-      }
+      if (!photo) return showIllustration(s, el, 'Pas encore de photo · illustration');
       const img = new Image();
       img.alt = s.name;
       img.referrerPolicy = 'no-referrer';
       img.onload = () => {
         el.innerHTML = '';
         el.append(img);
-          const credit = photo.credit || `${photo.nearby ? 'Photo prise à proximité · ' : ''}Wikimedia Commons ↗`;
+        const credit = photo.credit || `${photo.nearby ? 'Photo prise à proximité · ' : ''}Wikimedia Commons ↗`;
         el.insertAdjacentHTML('beforeend', `<a class="popup-cover-credit" href="${esc(photo.href)}" target="_blank" rel="noopener">${credit}</a>`);
         // Lien direct vers la fiche Google Maps du sanctuaire quand Google l'a trouvé.
         const link = el.closest('.popup')?.querySelector('.popup-link');
         if (link && photo.mapsUri) link.href = photo.mapsUri;
       };
-      img.onerror = () => { photoCache.set(s.id, Promise.resolve(null)); loadCover(s, el); };
+      img.onerror = () => {
+        forgetPhoto(s.id);
+        if (el.isConnected) showIllustration(s, el, 'Photo indisponible pour le moment');
+      };
       img.src = photo.src;
+    }).catch(() => {
+      if (el.isConnected) showIllustration(s, el, 'Photo indisponible pour le moment · réessaie plus tard');
     });
   }
 
