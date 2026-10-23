@@ -119,6 +119,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
   display: flex; align-items: center; gap: 8px; padding: 10px 16px;
   border-top: 1px solid var(--line); font-size: 13px;
 }
+body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
 .credit { margin-left: auto; color: var(--muted); font-size: 11px; }
 
 .primary, .ghost {

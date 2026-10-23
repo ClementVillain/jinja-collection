@@ -786,6 +786,8 @@
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
     googleToken = valid ? token : null;
     googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
+    // Connecté, la collection est synchronisée : Sauvegarder / Restaurer deviennent inutiles.
+    document.body.classList.toggle('signed-in', !!valid);
     try {
       if (valid) { localStorage.setItem(TOKEN_KEY, token); localStorage.setItem(LOGGED_KEY, '1'); }
       else localStorage.removeItem(TOKEN_KEY);
