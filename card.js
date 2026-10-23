@@ -147,7 +147,18 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${H * 0.2} ${W} ${H * 0.8}" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Illustration : ${esc(shrine.name)}">${scene(shrine.id, themeOf(shrine.id), uid)}</svg>`;
   }
 
-  function render(shrine, visit, number) {
+  // photo (facultatif) : { src, credit } — la même image que la couverture de la popup.
+  // Sans photo, la carte garde son illustration générée.
+  function photoLayer(photo, uid) {
+    const credit = photo.credit ? `<rect x="20" y="${H - 26}" width="${W - 40}" height="26" fill="url(#${uid}shade)"/>
+    <text x="32" y="${H - 9}" font-family="'Zen Kaku Gothic New', sans-serif" font-size="11" fill="#fff" opacity="0.9">Photo : ${esc(photo.credit)}</text>` : '';
+    return `<defs><linearGradient id="${uid}shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.55"/></linearGradient></defs>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#2b2420"/>
+    <image data-photo="1" href="${esc(photo.src)}" x="20" y="20" width="${W - 40}" height="${H - 20}" preserveAspectRatio="xMidYMid slice"/>
+    ${credit}`;
+  }
+
+  function render(shrine, visit, number, photo) {
     const id = shrine.id;
     const theme = themeOf(id);
     const rarity = rarityOf(id);
@@ -166,7 +177,7 @@
   <rect x="0" y="0" width="${W}" height="${H + 120}" rx="18" fill="${rarity.border.replace('url(#', 'url(#' + uid)}"/>
   <rect x="10" y="10" width="${W - 20}" height="${H + 100}" rx="12" fill="#fbf7f0"/>
   <g clip-path="url(#${uid}clip)">
-    ${scene(id, theme, uid)}
+    ${photo ? photoLayer(photo, uid) : scene(id, theme, uid)}
   </g>
   <g transform="translate(${W - 92} 52) rotate(-12)">
     <circle r="40" fill="none" stroke="#c8281e" stroke-width="4" opacity="0.85"/>

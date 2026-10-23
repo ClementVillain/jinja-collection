@@ -314,8 +314,11 @@
     el.innerHTML = ShrineCard.renderScene(s) + `<span class="popup-cover-credit">${label}</span>`;
   }
 
+  // Image de couverture retenue pour un sanctuaire : la même pour la popup et la carte postale.
+  const coverPhoto = (s) => photoFor(s).catch(() => null).then((wiki) => chooseCover(s, wiki));
+
   function loadCover(s, el) {
-    photoFor(s).catch(() => null).then((wiki) => chooseCover(s, wiki)).then((photo) => {
+    coverPhoto(s).then((photo) => {
       if (!el.isConnected) return;
       if (!photo) return showIllustration(s, el, 'Pas encore de photo · illustration');
       const img = new Image();
@@ -421,6 +424,7 @@
       <button class="card-thumb rarity-${ShrineCard.rarityOf(s.id).key}" data-action="card" data-id="${s.id}" title="${esc(s.name)}">
         ${ShrineCard.render(s, visit, number)}
       </button>`).join('');
+    hydrateGrid(recent);
 
     renderSearch();
   }
@@ -453,6 +457,37 @@
   }
 
   // ---------- Carte postale ----------
+  // Crédit affiché sur la carte, en texte simple.
+  const cardCredit = (photo) => (photo.credit || 'Wikimedia Commons').replace(/\s*↗$/, '').replace(/&amp;/g, '&');
+
+  // Remplace l'illustration par la photo de couverture une fois celle-ci chargée.
+  function withCoverPhoto(container, s, visit, number) {
+    return coverPhoto(s).then((photo) => {
+      if (!photo || !container.isConnected) return;
+      const img = new Image();
+      img.referrerPolicy = 'no-referrer';
+      return new Promise((resolve) => {
+        img.onload = () => {
+          if (container.isConnected) container.innerHTML = ShrineCard.render(s, visit, number, { src: photo.src, credit: cardCredit(photo) });
+          resolve();
+        };
+        img.onerror = resolve;
+        img.src = photo.src;
+      });
+    });
+  }
+
+  // Une carte après l'autre : évite de bombarder Wikimedia quand la collection est grande.
+  let gridRun = 0;
+  async function hydrateGrid(items) {
+    const run = ++gridRun;
+    for (const { shrine: s, visit, number } of items) {
+      if (run !== gridRun) return;
+      const thumb = document.querySelector(`#card-grid .card-thumb[data-id="${s.id}"]`);
+      if (thumb) await withCoverPhoto(thumb, s, visit, number);
+    }
+  }
+
   let modalId = null;
   function openCard(id, isNew = false) {
     const s = byId.get(id);
@@ -461,6 +496,7 @@
     modalId = id;
     $('#modal-title').textContent = isNew ? '✨ Nouvelle carte obtenue !' : s.name;
     $('#modal-card').innerHTML = ShrineCard.render(s, visit, cardNumber(id));
+    withCoverPhoto($('#modal-card'), s, visit, cardNumber(id));
     $('#modal-card').className = isNew ? 'reveal' : '';
     $('#modal-note').value = visit.note || '';
     $('#card-modal').hidden = false;
@@ -475,9 +511,32 @@
     refreshPanels();
   });
 
-  $('#modal-download').addEventListener('click', () => {
-    const svg = $('#modal-card svg');
+  // Une image SVG dessinée dans un canvas ne charge pas les images externes :
+  // on intègre la photo en data URL avant l'export. En cas d'échec, export avec l'illustration.
+  async function exportableSvg(svg, s) {
+    const photo = svg.querySelector('image[data-photo]');
+    if (!photo) return svg;
+    try {
+      const blob = await (await fetch(photo.getAttribute('href'))).blob();
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const clone = svg.cloneNode(true);
+      clone.querySelector('image[data-photo]').setAttribute('href', dataUrl);
+      return clone;
+    } catch {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = ShrineCard.render(s, visits[s.id], cardNumber(s.id));
+      return tmp.firstElementChild;
+    }
+  }
+
+  $('#modal-download').addEventListener('click', async () => {
     const s = byId.get(modalId);
+    const svg = await exportableSvg($('#modal-card svg'), s);
     const vb = svg.viewBox.baseVal;
     const img = new Image();
     img.onload = () => {
