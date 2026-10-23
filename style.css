@@ -97,6 +97,34 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
   background: none; border: 0; padding: 9px 4px; text-align: left; color: inherit;
 }
+.route-check { flex-shrink: 0; width: 16px; height: 16px; margin: 0 0 0 2px; accent-color: var(--vermilion); }
+
+.route-box { margin-bottom: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.route-box[hidden] { display: none; }
+.route-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.route-head strong { font-family: 'Shippori Mincho', serif; font-size: 16px; }
+.route-modes { display: flex; padding: 2px; border-radius: 8px; background: var(--paper-2); }
+.route-modes button { border: 0; background: none; padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--muted); }
+.route-modes button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.route-option { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 10px; }
+.route-option input { accent-color: var(--vermilion); }
+.route-go { width: 100%; }
+.route-go:disabled { opacity: 0.5; cursor: default; }
+.route-error { color: var(--vermilion); font-size: 12px; margin: 8px 0 0; }
+.route-summary { margin: 12px 0 8px; font-weight: 700; font-size: 14px; }
+.route-steps { list-style: none; margin: 0; padding: 0; }
+.route-steps li { display: grid; grid-template-columns: 24px 1fr; column-gap: 8px; align-items: center; padding: 3px 0; }
+.route-num { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--vermilion); color: #fff; font-size: 11px; font-weight: 700; }
+.route-step-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 14px; }
+.route-leg { grid-column: 2; font-size: 11px; color: var(--muted); }
+.route-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+.route-gmaps { text-decoration: none; font-size: 13px; }
+.route-pin { background: none; border: 0; }
+.route-pin span {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--vermilion); border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+  color: #fff; font-size: 11px; font-weight: 700;
+}
 .item-main:hover .item-name { color: var(--vermilion); }
 .item-icon {
   width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
@@ -226,6 +254,10 @@ button.popup-upload { width: 100%; background: none; font: inherit; font-size: 1
 .popup-upload-status:empty { display: none; }
 .popup-upload-status.ok { color: #2e7d4f; }
 .popup-upload-status.error { color: var(--vermilion); }
+.popup-links { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; }
+.popup-links a { color: var(--muted) !important; }
+.popup-links a:first-child { color: var(--vermilion) !important; font-weight: 500; }
+.popup-links .popup-link { margin-top: 0; }
 .popup-link { display: inline-block; margin-top: 10px; font-size: 12px; color: var(--muted) !important; }
 
 /* ---------- Modale ---------- */

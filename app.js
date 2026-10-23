@@ -138,7 +138,10 @@
         <input type="file" accept="image/*" data-upload="${s.id}" hidden></label>
       <div class="popup-upload-status" data-upload-status></div>`
     : '<button type="button" class="popup-upload" data-action="login-hint">📷 Connecte-toi pour partager ta photo</button>'}
-      <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
+      <div class="popup-links">
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat}%2C${s.lon}&travelmode=walking" target="_blank" rel="noopener">🧭 Itinéraire ↗</a>
+        <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
+      </div>
     </div>`;
   }
 
@@ -562,8 +565,10 @@
       .map(([id, w]) => ({ s: byId.get(id), w }));
     $('#wish-count').textContent = items.length;
     $('#wish-empty').hidden = items.length > 0;
+    renderRouteBox(items);
     $('#wish-list').innerHTML = items.map(({ s, w }) => `
       <li class="item wished">
+        ${items.length > 1 ? `<input type="checkbox" class="route-check" data-route-id="${s.id}" title="Inclure dans le circuit" ${routeExcluded.has(s.id) ? '' : 'checked'}>` : ''}
         <button class="item-main" data-action="locate" data-id="${s.id}">
           <span class="item-icon">★</span>
           <span class="item-text">
@@ -575,6 +580,139 @@
         <button class="ghost small" data-action="wish" data-id="${s.id}" title="Retirer de la liste">✕</button>
       </li>`).join('');
   }
+
+  // ---------- Circuit (itinéraire à plusieurs étapes) ----------
+  // Les sanctuaires cochés de la liste « À visiter » sont ordonnés au mieux (route.js),
+  // le parcours est tracé sur la carte et peut être ouvert dans Google Maps.
+  const MAX_ROUTE_STOPS = 25;
+  const routeExcluded = new Set();
+  let routeMode = 'foot';
+  let routeFromMe = false;
+  let routeState = { busy: false, error: '', result: null };
+  const routeLayer = L.layerGroup().addTo(map);
+
+  const fmtDistance = (m) => (m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} km`);
+  function fmtDuration(sec) {
+    const min = Math.max(1, Math.round(sec / 60));
+    return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')}`;
+  }
+
+  function routeStops(items) {
+    return items.filter(({ s }) => !routeExcluded.has(s.id)).map(({ s }) => s);
+  }
+
+  function googleRouteUrl(stops, fromMe, mode) {
+    // Google Maps accepte un départ, une arrivée et 9 étapes intermédiaires au maximum.
+    const list = stops.slice(0, fromMe ? 10 : 11).map((s) => `${s.lat},${s.lon}`);
+    const params = new URLSearchParams({ api: '1', travelmode: mode === 'car' ? 'driving' : 'walking' });
+    if (!fromMe) params.set('origin', list.shift());
+    params.set('destination', list.pop());
+    if (list.length) params.set('waypoints', list.join('|'));
+    return `https://www.google.com/maps/dir/?${params}`;
+  }
+
+  function renderRouteBox(items) {
+    const box = $('#route-box');
+    const stops = routeStops(items);
+    const enough = stops.length + (routeFromMe ? 1 : 0) >= 2;
+    if (!items.length) { box.hidden = true; return; }
+    box.hidden = false;
+    const { busy, error, result } = routeState;
+    let resultHtml = '';
+    if (result) {
+      const labels = result.ordered.map((p) => (p.me ? 'Ma position' : p.name));
+      const truncated = result.ordered.filter((p) => !p.me).length > (result.fromMe ? 10 : 11);
+      resultHtml = `
+        <div class="route-summary">${result.ordered.filter((p) => !p.me).length} étapes · ${fmtDistance(result.distance)} · ${fmtDuration(result.duration)} ${result.mode === 'car' ? 'en voiture' : 'à pied'}</div>
+        <ol class="route-steps">${labels.map((label, i) => `
+          <li><span class="route-num">${result.ordered[i].me ? '◎' : i + (result.fromMe ? 0 : 1)}</span>
+            <span class="route-step-name">${esc(label)}</span>
+            ${i < result.legs.length ? `<span class="route-leg">↓ ${fmtDuration(result.legs[i].duration)} · ${fmtDistance(result.legs[i].distance)}</span>` : ''}</li>`).join('')}
+        </ol>
+        <div class="route-actions">
+          <a class="primary route-gmaps" href="${googleRouteUrl(result.ordered.filter((p) => !p.me), result.fromMe, result.mode)}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
+          <button type="button" class="ghost small" data-route="clear">Effacer</button>
+        </div>
+        ${truncated ? '<p class="hint">Google Maps n\'accepte que 10 étapes : le lien couvre les premières.</p>' : ''}`;
+    }
+    box.innerHTML = `
+      <div class="route-head">
+        <strong>Circuit</strong>
+        <div class="route-modes">
+          <button type="button" data-route-mode="foot" class="${routeMode === 'foot' ? 'on' : ''}">🚶 À pied</button>
+          <button type="button" data-route-mode="car" class="${routeMode === 'car' ? 'on' : ''}">🚗 Voiture</button>
+        </div>
+      </div>
+      <label class="route-option"><input type="checkbox" data-route="from-me" ${routeFromMe ? 'checked' : ''}> Partir de ma position</label>
+      <button type="button" class="primary route-go" data-route="go" ${busy || !enough ? 'disabled' : ''}>
+        ${busy ? 'Calcul du circuit…' : enough ? `Tracer le circuit (${stops.length} sanctuaire${stops.length > 1 ? 's' : ''})` : 'Coche au moins 2 sanctuaires'}
+      </button>
+      ${stops.length > MAX_ROUTE_STOPS ? `<p class="hint">Seuls les ${MAX_ROUTE_STOPS} premiers sanctuaires cochés seront pris en compte.</p>` : ''}
+      ${error ? `<p class="route-error">${esc(error)}</p>` : ''}
+      ${resultHtml}`;
+  }
+
+  function drawRoute(result) {
+    routeLayer.clearLayers();
+    L.geoJSON(result.geometry, { style: { color: '#d63b23', weight: 5, opacity: 0.8, dashArray: result.mode === 'foot' ? '2 9' : null, lineCap: 'round' } }).addTo(routeLayer);
+    let n = 0;
+    for (const p of result.ordered) {
+      const icon = L.divIcon({ className: 'route-pin', html: `<span>${p.me ? '◎' : ++n}</span>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+      const marker = L.marker([p.lat, p.lon], { icon, zIndexOffset: 2000, title: p.me ? 'Ma position' : p.name }).addTo(routeLayer);
+      if (!p.me) marker.on('click', () => focusShrine(p.id));
+    }
+    map.fitBounds(L.geoJSON(result.geometry).getBounds(), { padding: [40, 40] });
+  }
+
+  function currentPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('localisation non disponible'));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ me: true, lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        () => reject(new Error("impossible d'obtenir ta position (autorise la localisation)")),
+        { enableHighAccuracy: true, timeout: 10000 },
+      );
+    });
+  }
+
+  async function computeRoute() {
+    const items = Object.keys(wishlist).filter((id) => byId.has(id) && !isVisited(id)).map((id) => ({ s: byId.get(id) }));
+    const stops = routeStops(items).slice(0, MAX_ROUTE_STOPS);
+    routeState = { busy: true, error: '', result: null };
+    routeLayer.clearLayers();
+    renderWishlist();
+    try {
+      const points = routeFromMe ? [await currentPosition(), ...stops] : stops;
+      const result = await JinjaRoute.plan(points, { mode: routeMode, fixedStart: routeFromMe });
+      routeState = { busy: false, error: '', result: { ...result, mode: routeMode, fromMe: routeFromMe } };
+      drawRoute(routeState.result);
+      if (isMobile()) setCollapsed(true);
+    } catch (err) {
+      routeState = { busy: false, error: 'Circuit impossible : ' + err.message, result: null };
+    }
+    renderWishlist();
+  }
+
+  function clearRoute() {
+    routeLayer.clearLayers();
+    routeState = { busy: false, error: '', result: null };
+    renderWishlist();
+  }
+
+  $('#tab-wish').addEventListener('click', (e) => {
+    const modeBtn = e.target.closest('[data-route-mode]');
+    if (modeBtn) { routeMode = modeBtn.dataset.routeMode; renderWishlist(); return; }
+    const action = e.target.closest('[data-route]')?.dataset.route;
+    if (action === 'go') computeRoute();
+    else if (action === 'clear') clearRoute();
+  });
+  $('#tab-wish').addEventListener('change', (e) => {
+    if (e.target.matches('[data-route="from-me"]')) routeFromMe = e.target.checked;
+    else if (e.target.matches('.route-check')) {
+      if (e.target.checked) routeExcluded.delete(e.target.dataset.routeId); else routeExcluded.add(e.target.dataset.routeId);
+    } else return;
+    renderWishlist();
+  });
 
   // ---------- Recherche ----------
   // Ignore casse, accents, espaces et tirets : « fushimi inari taisha » trouve « Fushimi Inari-taisha ».
@@ -966,7 +1104,7 @@
 
 
   // ---------- Chargement ----------
-  fetch('data/shrines.json?v=2') // version à changer quand les données sont régénérées
+  fetch('data/shrines.json?v=3') // version à changer quand les données sont régénérées
     .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then((data) => {
       shrines = data.shrines.map(([id, name, nameLatin, lat, lon, photo, romaji = '']) => ({

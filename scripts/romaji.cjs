@@ -88,7 +88,9 @@ async function createRomanizer() {
       const tail = [];
       for (const suffix of [...suffixes].reverse()) {
         const low = suffix.toLowerCase();
-        if (r.length > low.length && r.endsWith(low)) { tail.unshift(suffix); r = r.slice(0, -low.length); } else break;
+        // « temmangū » (m devant b/m/p) doit reconnaître le suffixe « Tenmangū ».
+        const comparable = r.replace(/m(?=[bmp])/g, 'n');
+        if (r.length > low.length && comparable.endsWith(low)) { tail.unshift(suffix); r = r.slice(0, -low.length); } else break;
       }
       return [capitalize(r), ...tail].join(' ');
     }

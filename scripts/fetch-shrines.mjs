@@ -49,8 +49,11 @@ const round = (n) => Math.round(n * 1e5) / 1e5;
 // sinon transcription à partir de la lecture kana d'OSM ou des kanji.
 async function romajiOf(t, name) {
   const osm = t['name:ja-Latn'] || t['name:ja_rm'] || '';
-  if (osm && !/shrine|temple/i.test(osm)) return osm;
-  return romanize(name, t['name:ja-Hira'] || t['name:ja_kana'] || t['name:ja-Kana'] || t['name:ja-Hrkt']);
+  // Certains y mettent la lecture en kana (ゆしまてんまんぐう) : elle sert alors de lecture.
+  const osmIsKana = /^[\u3040-\u30ff\s\u3000ー]+$/.test(osm);
+  if (osm && !osmIsKana && !/[\u3040-\u30ff\u3400-\u9fff]/.test(osm) && !/shrine|temple/i.test(osm)) return osm;
+  const kana = t['name:ja-Hira'] || t['name:ja_kana'] || t['name:ja-Kana'] || t['name:ja-Hrkt'] || (osmIsKana ? osm : '');
+  return romanize(name, kana);
 }
 
 // Référence vers une photo : fichier Wikimedia Commons, entité Wikidata (propriété P18),
