@@ -12,10 +12,11 @@
   async function osrm(url, tries = 3) {
     for (let i = 0; i < tries; i++) {
       const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.code !== 'Ok') throw new Error(data.message || data.code);
-        return data;
+      // OSRM répond 400 quand aucun chemin n'existe (code NoRoute, NoSegment…).
+      if (res.ok || res.status === 400) {
+        const data = await res.json().catch(() => null);
+        if (data?.code === 'Ok') return data;
+        if (data?.code) throw Object.assign(new Error(data.message || data.code), { code: data.code });
       }
       if (res.status !== 429 || i === tries - 1) throw new Error(`service d'itinéraire indisponible (${res.status})`);
       await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
@@ -92,7 +93,7 @@
     };
   }
 
-  const api = { plan, bestOrder, pathCost };
+  const api = { plan, bestOrder, pathCost, osrm, SERVERS };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.JinjaRoute = api;
 })(this);

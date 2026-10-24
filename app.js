@@ -148,8 +148,10 @@
       <div class="popup-name">${esc(s.name)}</div>${latin}${status}
       <div class="popup-actions">${actions}</div>
       <div class="popup-upload-status" data-upload-status></div>
-      <a class="popup-route" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat}%2C${s.lon}&travelmode=walking" target="_blank" rel="noopener">Itinéraire</a>
-      <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
+      <div class="popup-route-row">
+        <button type="button" class="popup-route popup-go" data-action="navigate" data-id="${s.id}">➤ Y aller</button>
+      </div>
+      <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>`;
   }
 
@@ -531,6 +533,7 @@
     else if (action === 'locate') focusShrine(id);
     else if (action === 'wish') toggleWish(id);
     else if (action === 'login-hint') showAccount();
+    else if (action === 'navigate') JinjaNav.start({ stops: [byId.get(id)], mode: routeMode });
   });
 
   // ---------- Panneau ----------
@@ -646,7 +649,8 @@
             ${i < result.legs.length ? `<span class="route-leg">↓ ${fmtDuration(result.legs[i].duration)} · ${fmtDistance(result.legs[i].distance)}</span>` : ''}</li>`).join('')}
         </ol>
         <div class="route-actions">
-          <a class="primary route-gmaps" href="${googleRouteUrl(result.ordered.filter((p) => !p.me), result.fromMe, result.mode)}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
+          <button type="button" class="primary" data-route="start">▶ Démarrer</button>
+          <a class="ghost small route-gmaps" href="${googleRouteUrl(result.ordered.filter((p) => !p.me), result.fromMe, result.mode)}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
           <button type="button" class="ghost small" data-route="clear">Effacer</button>
         </div>
         ${truncated ? '<p class="hint">Google Maps n\'accepte que 10 étapes : le lien couvre les premières.</p>' : ''}`;
@@ -709,6 +713,39 @@
     renderWishlist();
   }
 
+  // Navigation étape par étape sur le circuit tracé (sanctuaires pas encore visités).
+  function startCircuit() {
+    const result = routeState.result;
+    if (!result) return;
+    const stops = result.ordered.filter((p) => !p.me && !isVisited(p.id));
+    if (!stops.length) { alert('Tous les sanctuaires de ce circuit sont déjà visités.'); return; }
+    JinjaNav.start({ stops, mode: result.mode, circuit: stops.length > 1 });
+  }
+
+  // ---------- Navigation (navigation.js) ----------
+  // Pendant la navigation : panneau replié, popup fermée, tracé du circuit masqué.
+  let navRestore = null;
+  JinjaNav.setup({
+    map,
+    isVisited,
+    markVisited,
+    onStart() {
+      if (!navRestore) {
+        navRestore = { collapsed: document.body.classList.contains('panel-collapsed'), hidden: document.body.classList.contains('panel-hidden') };
+      }
+      map.closePopup();
+      map.removeLayer(routeLayer);
+      if (isMobile()) setCollapsed(true); else setPanelHidden(true);
+    },
+    onStop() {
+      map.addLayer(routeLayer);
+      if (navRestore) {
+        if (isMobile()) setCollapsed(navRestore.collapsed); else setPanelHidden(navRestore.hidden);
+        navRestore = null;
+      }
+    },
+  });
+
   function clearRoute() {
     routeLayer.clearLayers();
     routeState = { busy: false, error: '', result: null };
@@ -721,6 +758,7 @@
     const action = e.target.closest('[data-route]')?.dataset.route;
     if (action === 'go') computeRoute();
     else if (action === 'clear') clearRoute();
+    else if (action === 'start') startCircuit();
   });
   $('#tab-wish').addEventListener('change', (e) => {
     if (e.target.matches('[data-route="from-me"]')) routeFromMe = e.target.checked;
