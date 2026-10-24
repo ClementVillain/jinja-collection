@@ -50,6 +50,8 @@
   // ---------- Carte ----------
   const map = L.map('map', { zoomControl: false, preferCanvas: true }).setView([36.2, 138.2], 5);
   L.control.zoom({ position: 'topright' }).addTo(map);
+  // Mention « © OpenStreetMap » obligatoire (licence ODbL) ; le préfixe « Leaflet » ne l'est pas.
+  map.attributionControl.setPrefix(false);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
