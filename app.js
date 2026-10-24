@@ -150,9 +150,8 @@
       <div class="popup-upload-status" data-upload-status></div>
       <div class="popup-route-row">
         <button type="button" class="popup-route popup-go" data-action="navigate" data-id="${s.id}">➤ Y aller</button>
-        <a class="popup-route" href="https://www.google.com/maps/dir/?api=1&destination=${s.lat}%2C${s.lon}&travelmode=${routeMode === 'car' ? 'driving' : 'walking'}" target="_blank" rel="noopener" title="Itinéraire dans Google Maps">Itinéraire ↗</a>
       </div>
-      <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps ↗</a>
+      <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>`;
   }
 

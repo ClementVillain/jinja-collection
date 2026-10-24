@@ -273,7 +273,7 @@ body.signed-in #export-btn, body.signed-in .file-btn { display: none; }
 .popup-upload-status:empty { display: none; }
 .popup-upload-status.ok { color: #2e7d4f; }
 .popup-upload-status.error { color: var(--vermilion); }
-.popup-link { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--muted) !important; }
+.popup-link { display: block; text-align: center; margin-top: 8px; font-size: 12px; color: var(--muted) !important; }
 
 /* ---------- Navigation (navigation.js) ---------- */
 /* Bandeau en haut de l'écran : grands caractères et fort contraste, lisible au soleil. */
