@@ -731,7 +731,7 @@
     markVisited,
     onStart() {
       if (!navRestore) {
-        navRestore = { collapsed: document.body.classList.contains('panel-collapsed'), hidden: document.body.classList.contains('panel-hidden') };
+        navRestore = { sheet: sheetState(), hidden: document.body.classList.contains('panel-hidden') };
       }
       map.closePopup();
       map.removeLayer(routeLayer);
@@ -740,7 +740,7 @@
     onStop() {
       map.addLayer(routeLayer);
       if (navRestore) {
-        if (isMobile()) setCollapsed(navRestore.collapsed); else setPanelHidden(navRestore.hidden);
+        if (isMobile()) setSheet(navRestore.sheet); else setPanelHidden(navRestore.hidden);
         navRestore = null;
       }
     },
@@ -1114,44 +1114,69 @@
   // Revenir sur l'appli (autre onglet, téléphone déverrouillé) récupère les cartes ajoutées ailleurs.
   document.addEventListener('visibilitychange', () => { if (!document.hidden) scheduleSync(); });
 
-  // ---------- Mobile : réduire / déplier le panneau ----------
-  // Sur mobile, le panneau est un volet : on le glisse vers le bas pour libérer la carte,
-  // vers le haut pour le rouvrir, ou on tape sur sa barre pour basculer.
-  const SHEET_KEY = 'jinja-collection:sheet-collapsed';
+  // ---------- Mobile : volet à trois positions ----------
+  // Replié (barre seule, carte en plein écran), moitié, ou plein écran (collection, listes).
+  // On glisse la barre du haut entre ces positions. Un tap sur la flèche replie / déplie ;
+  // un tap ailleurs sur la barre passe de moitié à plein écran et inversement.
+  const SHEET_KEY = 'jinja-collection:sheet';
+  const SHEET_STATES = ['collapsed', 'half', 'full'];
   const isMobile = () => window.matchMedia('(max-width: 760px)').matches;
   const panel = $('.panel');
-  function setCollapsed(collapsed) {
-    document.body.classList.toggle('panel-collapsed', collapsed);
-    $('.sheet-toggle').setAttribute('aria-label', collapsed ? 'Déplier le menu' : 'Replier le menu');
-    try { localStorage.setItem(SHEET_KEY, collapsed ? '1' : '0'); } catch { /* ignore */ }
+  const sheetState = () => (document.body.classList.contains('panel-collapsed') ? 'collapsed'
+    : document.body.classList.contains('panel-full') ? 'full' : 'half');
+
+  function setSheet(state) {
+    document.body.classList.toggle('panel-collapsed', state === 'collapsed');
+    document.body.classList.toggle('panel-full', state === 'full');
+    $('.sheet-toggle').setAttribute('aria-label', state === 'collapsed' ? 'Déplier le menu' : 'Replier le menu');
+    try { localStorage.setItem(SHEET_KEY, state); } catch { /* ignore */ }
   }
-  try { if (isMobile() && localStorage.getItem(SHEET_KEY) === '1') setCollapsed(true); } catch { /* ignore */ }
+  // Compatibilité : replier / déplier sans perdre le plein écran déjà choisi.
+  function setCollapsed(collapsed) {
+    if (collapsed) setSheet('collapsed');
+    else if (sheetState() === 'collapsed') setSheet('half');
+  }
+  // Au chargement, on ne rouvre pas en plein écran : la carte doit rester visible.
+  try { if (isMobile() && localStorage.getItem(SHEET_KEY) === 'collapsed') setSheet('collapsed'); } catch { /* ignore */ }
+
+  function sheetHeights() {
+    const vh = window.visualViewport?.height || window.innerHeight;
+    const peek = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek'));
+    return { collapsed: peek, half: vh * 0.64, full: vh - 10 };
+  }
 
   let drag = null;
   $('.sheet-grab').addEventListener('pointerdown', (e) => {
     if (!isMobile()) return;
-    const peek = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek'));
-    const collapsedOffset = panel.offsetHeight - peek;
-    const start = document.body.classList.contains('panel-collapsed') ? collapsedOffset : 0;
-    drag = { y: e.clientY, start, max: collapsedOffset, dy: 0 };
+    drag = { y: e.clientY, dy: 0, startH: panel.offsetHeight, state: sheetState(), onToggle: !!e.target.closest('.sheet-toggle') };
     $('.sheet-grab').setPointerCapture(e.pointerId);
   });
   $('.sheet-grab').addEventListener('pointermove', (e) => {
     if (!drag) return;
     drag.dy = e.clientY - drag.y;
     if (Math.abs(drag.dy) < 6) return;
+    const h = sheetHeights();
     panel.classList.add('dragging');
-    panel.style.transform = `translateY(${Math.min(drag.max, Math.max(0, drag.start + drag.dy))}px)`;
+    panel.style.height = `${Math.min(h.full, Math.max(h.collapsed, drag.startH - drag.dy))}px`;
   });
   function endDrag() {
     if (!drag) return;
-    const { dy } = drag;
+    const { dy, startH, state, onToggle } = drag;
     drag = null;
     panel.classList.remove('dragging');
-    panel.style.transform = '';
-    if (Math.abs(dy) < 6) setCollapsed(!document.body.classList.contains('panel-collapsed'));
-    else if (dy > 50) setCollapsed(true);
-    else if (dy < -50) setCollapsed(false);
+    panel.style.height = '';
+    if (Math.abs(dy) < 6) {
+      if (onToggle) setSheet(state === 'collapsed' ? 'half' : 'collapsed');
+      else setSheet(state === 'half' ? 'full' : 'half');
+      return;
+    }
+    // Position la plus proche de la hauteur atteinte ; un geste net change au moins d'un cran.
+    const h = sheetHeights();
+    const target = startH - dy;
+    let next = SHEET_STATES.reduce((a, b) => (Math.abs(h[b] - target) < Math.abs(h[a] - target) ? b : a));
+    const i = SHEET_STATES.indexOf(state);
+    if (next === state && Math.abs(dy) > 50) next = SHEET_STATES[Math.max(0, Math.min(2, i + (dy < 0 ? 1 : -1)))];
+    setSheet(next);
   }
   $('.sheet-grab').addEventListener('pointerup', endDrag);
   $('.sheet-grab').addEventListener('pointercancel', endDrag);

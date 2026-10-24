@@ -382,12 +382,12 @@ body.navigating .leaflet-top { top: calc(var(--nav-h, 0px) + env(safe-area-inset
     border-right: 0; border-radius: 18px 18px 0 0;
     box-shadow: 0 -6px 24px rgba(40, 25, 15, 0.18);
     padding-bottom: env(safe-area-inset-bottom);
-    transition: transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
-    will-change: transform;
+    overflow: hidden;
+    transition: height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  body.panel-collapsed .panel {
-    transform: translateY(calc(100% - var(--sheet-peek) - env(safe-area-inset-bottom)));
-  }
+  /* Trois positions : replié (barre seule), moitié (par défaut) et plein écran. */
+  body.panel-collapsed .panel { height: calc(var(--sheet-peek) + env(safe-area-inset-bottom)); }
+  body.panel-full .panel { height: calc(100vh - 10px); height: calc(100dvh - env(safe-area-inset-top) - 10px); }
   .panel.dragging { transition: none; }
   .panel-edge { display: none; }
   body.panel-hidden .panel { margin-left: 0; }
