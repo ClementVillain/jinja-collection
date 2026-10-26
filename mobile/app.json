@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Jinja Collection",
+    "slug": "jinja-collection",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "jinjacollection",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.villainclement.jinjacollection",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.villainclement.jinjacollection",
+      "adaptiveIcon": {
+        "backgroundColor": "#d63b23",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "plugins": [
+      "@maplibre/maplibre-react-native",
+      "expo-sharing",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Jinja Collection utilise ta position pour te guider jusqu'aux sanctuaires et te montrer où tu es sur la carte."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Jinja Collection a besoin d'accéder à tes photos pour que tu partages une photo d'un sanctuaire.",
+          "cameraPermission": "Jinja Collection a besoin de l'appareil photo pour que tu photographies un sanctuaire.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "extra": {
+      "apiBase": "https://jinja-collection.vercel.app",
+      "googleWebClientId": "972771617767-ksfrnnnck9o8jhvif4cce60uoghrtv1o.apps.googleusercontent.com"
+    }
+  }
+}
