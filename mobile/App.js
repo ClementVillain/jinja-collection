@@ -138,7 +138,7 @@ function Main() {
         onDismiss={dismissMessage}
       />
 
-      <PostcardModal id={card?.id} isNew={card?.isNew} onClose={() => setCard(null)} />
+      <PostcardModal id={card?.id} isNew={card?.isNew} onClose={() => setCard(null)} onNavigate={(id) => { setCard(null); navigateTo(byId.get(id)); }} />
     </View>
   );
 }

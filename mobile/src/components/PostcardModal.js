@@ -36,7 +36,7 @@ export function useCoverPhoto(id) {
   return photo;
 }
 
-export default function PostcardModal({ id, isNew, onClose }) {
+export default function PostcardModal({ id, isNew, onClose, onNavigate }) {
   const c = useCollection();
   const shot = useRef(null);
   const photo = useCoverPhoto(id);
@@ -73,6 +73,11 @@ export default function PostcardModal({ id, isNew, onClose }) {
             placeholderTextColor={colors.muted}
             multiline
           />
+          {onNavigate ? (
+            <Pressable style={[styles.btn, styles.go]} onPress={() => { c.setNote(id, note); onNavigate(id); }}>
+              <Text style={styles.goText}>➤ Y aller</Text>
+            </Pressable>
+          ) : null}
           <View style={styles.actions}>
             <Pressable style={[styles.btn, styles.ghost]} onPress={share}><Text style={styles.ghostText}>Partager la carte</Text></Pressable>
             <Pressable style={[styles.btn, styles.primary]} onPress={() => { c.setNote(id, note); onClose(); }}><Text style={styles.primaryText}>Fermer</Text></Pressable>
@@ -90,6 +95,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: colors.muted },
   note: { minHeight: 60, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: '#fff', padding: 10, fontSize: 15, color: colors.ink },
   actions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
+  go: { backgroundColor: colors.ink, alignItems: 'center' },
+  goText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   btn: { borderRadius: 10, paddingVertical: 11, paddingHorizontal: 16 },
   primary: { backgroundColor: colors.vermilion },
   primaryText: { color: '#fff', fontWeight: '700' },

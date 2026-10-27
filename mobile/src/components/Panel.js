@@ -12,7 +12,8 @@ import { fmtDate, fmtDistance, fmtDuration, latinName, normalize } from '../lib/
 import { colors, fonts } from '../theme';
 
 const SEARCH_INDEX = shrines.map((s) => ({ s, key: normalize(`${s.name} ${s.nameLatin} ${s.romaji}`) }));
-const TABS = [['explore', 'Explorer'], ['wish', 'À visiter'], ['visited', 'Visités'], ['collection', 'Collection'], ['friends', 'Amis']];
+// Pas d'onglet « Visités » : la Collection montre déjà chaque sanctuaire visité (avec son compteur).
+const TABS = [['explore', 'Explorer'], ['wish', 'À visiter'], ['collection', 'Collection'], ['friends', 'Amis']];
 const MAX_ROUTE_STOPS = 25;
 
 function Item({ s, icon, iconStyle, sub, right, onPress }) {
@@ -204,7 +205,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
           <Pressable key={k} style={[styles.tab, tab === k && styles.tabOn]} onPress={() => setTab(k)}>
             <Text style={[styles.tabText, tab === k && { color: colors.vermilion }]}>{label}</Text>
             {k === 'wish' ? <View style={[styles.badge, { backgroundColor: colors.gold }]}><Text style={styles.badgeText}>{wishItems.length}</Text></View> : null}
-            {k === 'visited' ? <View style={styles.badge}><Text style={styles.badgeText}>{n}</Text></View> : null}
+            {k === 'collection' ? <View style={styles.badge}><Text style={styles.badgeText}>{n}</Text></View> : null}
           </Pressable>
         ))}
       </View>
@@ -255,14 +256,6 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
           </>
         ) : null}
 
-        {tab === 'visited' ? (
-          recent.length ? recent.map(({ shrine: s, visit, number }) => (
-            <Item key={s.id} s={s} onPress={() => onSelect(s.id)} icon="⛩" iconStyle={styles.iconVisited}
-              sub={`No. ${String(number).padStart(4, '0')} · ${fmtDate(visit.date)}${visit.note ? ` · ${visit.note}` : ''}`}
-              right={<Pressable style={styles.smallBtn} onPress={() => onOpenCard(s.id)}><Text style={styles.smallBtnText}>Carte</Text></Pressable>} />
-          )) : <Text style={styles.hint}>Aucun sanctuaire visité pour l'instant. Ouvre un sanctuaire et touche « J'y suis allé ».</Text>
-        ) : null}
-        {tab === 'visited' ? <Text style={styles.hint}>Une visite compte si ta position a été enregistrée à moins de 1 km du sanctuaire dans les 48 h précédentes (position gardée sur ton appareil, seule la position utilisée est envoyée avec la visite). Cela évite les cartes cochées depuis son canapé, mais pas la triche délibérée : un GPS falsifié trompe la vérification.</Text> : null}
 
         {tab === 'collection' ? (
           recent.length ? (
@@ -271,6 +264,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
             </View>
           ) : <Text style={styles.hint}>Ta collection est vide. Chaque sanctuaire visité te donne une carte postale.</Text>
         ) : null}
+        {tab === 'collection' ? <Text style={styles.hint}>Une visite compte si ta position a été enregistrée à moins de 1 km du sanctuaire dans les 48 h précédentes (position gardée sur ton appareil, seule la position utilisée est envoyée avec la visite). Cela évite les cartes cochées depuis son canapé, mais pas la triche délibérée : un GPS falsifié trompe la vérification.</Text> : null}
         {tab === 'friends' ? <Friends onSelect={onSelect} cardWidth={cardW} onLogin={() => setTab('explore')} /> : null}
         <Text style={styles.credit}>Données © OpenStreetMap · photos Wikimedia Commons</Text>
       </BottomSheetScrollView>
