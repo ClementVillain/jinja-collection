@@ -63,6 +63,16 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .account.pulse { animation: pulse 1.2s ease-out 2; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(214, 59, 35, 0.55); } 100% { box-shadow: 0 0 0 12px rgba(214, 59, 35, 0); } }
 .popup-unverified { margin: -4px 0 8px; font-size: 12px; color: #9a6a00; }
+.popup-discoverer { display: flex; align-items: center; gap: 4px; margin: 2px 0 4px; font-size: 12px; color: var(--muted); }
+.popup-discoverer svg { color: var(--vermilion); }
+.account { flex-wrap: wrap; }
+.account-username { font-size: 11px; color: var(--muted); }
+.link-btn { border: 0; background: none; padding: 0; font: inherit; color: var(--vermilion); text-decoration: underline; cursor: pointer; }
+.username-form { flex-basis: 100%; font-size: 12px; }
+.username-form small { color: var(--muted); }
+.username-row { display: flex; gap: 6px; margin-top: 4px; }
+.username-row input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.username-error { color: var(--vermilion); }
 .popup-login { margin-top: 6px; font-size: 12px; color: var(--muted); }
 .account-pitch { flex: 1; margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .account-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }

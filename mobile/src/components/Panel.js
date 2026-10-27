@@ -32,8 +32,31 @@ function Item({ s, icon, iconStyle, sub, right, onPress }) {
   );
 }
 
+function UsernameForm({ onDone }) {
+  const c = useCollection();
+  const [value, setValue] = useState(c.username || '');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true); setError('');
+    try { await c.chooseUsername(value); onDone?.(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  return (
+    <View style={styles.nameForm}>
+      <Text style={styles.nameLabel}>{c.username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <Text style={{ color: colors.muted }}>(visible par les autres : amis, « Découvert par »)</Text></Text>
+      <View style={styles.nameRow}>
+        <BottomSheetTextInput style={[styles.search, { flex: 1, marginBottom: 0 }]} value={value} onChangeText={setValue} autoCapitalize="none" autoCorrect={false}
+          placeholder="ex : kitsune_77" placeholderTextColor={colors.muted} maxLength={20} onSubmitEditing={submit} />
+        <Pressable style={[styles.goBtn, { paddingHorizontal: 16 }, busy && { opacity: 0.5 }]} disabled={busy} onPress={submit}><Text style={styles.goText}>OK</Text></Pressable>
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
 function Account() {
   const c = useCollection();
+  const [editing, setEditing] = useState(false);
   if (!c.googleSignInAvailable) return null;
   if (!c.user) {
     return (
@@ -44,13 +67,17 @@ function Account() {
     );
   }
   return (
-    <View style={styles.account}>
+    <View style={[styles.account, { flexWrap: 'wrap' }]}>
       {c.user.picture ? <Image source={{ uri: c.user.picture }} style={styles.accountAvatar} /> : null}
       <View style={{ flex: 1 }}>
         <Text style={styles.accountName} numberOfLines={1}>{c.user.name}</Text>
+        {c.username ? (
+          <Text style={styles.accountUsername}>@{c.username} · <Text style={styles.link} onPress={() => setEditing(true)}>modifier</Text></Text>
+        ) : null}
         <Text style={[styles.accountStatus, c.syncStatus.error && { color: colors.vermilion }]}>{c.syncStatus.text}</Text>
       </View>
       <Pressable style={styles.smallBtn} onPress={c.signOut}><Text style={styles.smallBtnText}>Déconnexion</Text></Pressable>
+      {c.username === null || editing ? <UsernameForm onDone={() => setEditing(false)} /> : null}
     </View>
   );
 }
@@ -284,6 +311,11 @@ const styles = StyleSheet.create({
   accountPitch: { flex: 1, fontSize: 12, color: colors.muted },
   accountAvatar: { width: 32, height: 32, borderRadius: 16 },
   accountName: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  accountUsername: { fontSize: 11, color: colors.muted },
+  link: { color: colors.vermilion, textDecorationLine: 'underline' },
+  nameForm: { flexBasis: '100%', marginTop: 4 },
+  nameLabel: { fontSize: 12, color: colors.ink, marginBottom: 6 },
+  nameRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   accountStatus: { fontSize: 11, color: colors.green },
   googleBtn: { borderWidth: 1, borderColor: colors.line, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
   googleText: { fontSize: 13, fontWeight: '600', color: colors.ink },

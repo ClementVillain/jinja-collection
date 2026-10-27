@@ -155,7 +155,7 @@
         <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
         ${addPhoto}
       </div>
-      <div class="popup-name">${esc(s.name)}</div>${latin}${status}
+      <div class="popup-name">${esc(s.name)}</div>${latin}${discoveredHtml(s.id)}${status}
       <div class="popup-actions">${actions}</div>${loginNote}
       <div class="popup-upload-status" data-upload-status></div>
       <div class="popup-route-row">
@@ -164,6 +164,21 @@
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>`;
   }
+
+  // ---------- « Découvert par » : premier visiteur vérifié de chaque sanctuaire ----------
+  let discoveries = {};
+  const DISCOVERER_ICON = `<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  function discoveredHtml(id) {
+    const name = discoveries[id];
+    return name ? `<div class="popup-discoverer" title="Premier visiteur de ce sanctuaire (visite vérifiée)">${DISCOVERER_ICON} Découvert par <b>${esc(name)}</b></div>` : '';
+  }
+  function loadDiscoveries() {
+    fetch('/api/discoveries')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) discoveries = data; })
+      .catch(() => { /* serveur local sans /api */ });
+  }
+  loadDiscoveries();
 
   // ---------- Photos de couverture ----------
   // Ordre de recherche : Google Maps (si la clé est configurée sur Vercel), photo liée dans
@@ -1031,6 +1046,9 @@
   let syncing = null;
   let syncAgain = false;
   let syncStatus = { text: '', error: false };
+  // Nom d'utilisateur public (undefined : pas encore lu ; null : pas encore choisi).
+  let username;
+  let editingName = false;
 
   function jwtPayload(token) {
     try {
@@ -1042,6 +1060,7 @@
   function setToken(token) {
     const payload = token && jwtPayload(token);
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
+    if (!valid || googleToken !== token) username = undefined;
     googleToken = valid ? token : null;
     googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
     // Connecté, la collection est synchronisée : Sauvegarder / Restaurer deviennent inutiles.
@@ -1054,8 +1073,9 @@
     if (shrines.length) refreshPanels();
   }
 
-  async function syncApi(method, body) {
-    const res = await fetch('/api/sync', {
+  const syncApi = (method, body) => syncApiAt('/api/sync', method, body);
+  async function syncApiAt(path, method, body) {
+    const res = await fetch(path, {
       method,
       headers: { Authorization: `Bearer ${googleToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
@@ -1103,8 +1123,10 @@
       if (!JinjaMerge.same(merged, remote)) {
         const { state: saved } = await syncApi('PUT', merged);
         if (saved) applyMerged(JinjaMerge.merge(saved, { visits, deleted, wishlist, wishDeleted }));
+        loadDiscoveries();
       }
       setSyncStatus('Synchronisé ✓');
+      loadProfile();
     })()
       .catch((err) => setSyncStatus('Synchro impossible : ' + err.message, true))
       .finally(() => {
@@ -1112,6 +1134,14 @@
         if (syncAgain) { syncAgain = false; scheduleSync(); }
       });
     return syncing;
+  }
+
+  async function loadProfile() {
+    if (!googleToken || username !== undefined) return;
+    try {
+      ({ username } = await syncApiAt('/api/profile', 'GET'));
+      renderAccount();
+    } catch { /* réessayé à la prochaine synchro */ }
   }
 
   function scheduleSync() {
@@ -1143,9 +1173,31 @@
         ${googleUser.picture ? `<img class="account-avatar" src="${esc(googleUser.picture)}" alt="" referrerpolicy="no-referrer">` : ''}
         <div class="account-text">
           <span class="account-name">${esc(googleUser.name)}</span>
+          ${username ? `<span class="account-username">@${esc(username)} · <button type="button" class="link-btn" data-edit-name>modifier</button></span>` : ''}
           <span id="sync-status" class="account-status ${syncStatus.error ? 'error' : ''}">${esc(syncStatus.text)}</span>
         </div>
-        <button id="logout-btn" class="ghost small" type="button">Déconnexion</button>`;
+        <button id="logout-btn" class="ghost small" type="button">Déconnexion</button>
+        ${username === null || editingName ? `
+          <form class="username-form">
+            <label>${username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <small>(visible par les autres : amis, « Découvert par »)</small>
+              <span class="username-row"><input name="username" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]{3,20}" placeholder="ex : kitsune_77" value="${esc(username || '')}" autocomplete="off">
+              <button class="primary small" type="submit">OK</button></span>
+            </label>
+            <span class="username-error" data-name-error></span>
+          </form>` : ''}`;
+      el.querySelector('[data-edit-name]')?.addEventListener('click', () => { editingName = true; renderAccount(); });
+      el.querySelector('.username-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = e.target.elements.username;
+        try {
+          ({ username } = await syncApiAt('/api/profile', 'PUT', { username: input.value }));
+          editingName = false;
+          renderAccount();
+          loadDiscoveries();
+        } catch (err) {
+          el.querySelector('[data-name-error]').textContent = err.message;
+        }
+      });
       $('#logout-btn').addEventListener('click', () => {
         try { google.accounts.id.disableAutoSelect(); localStorage.removeItem(LOGGED_KEY); } catch { /* ignore */ }
         setSyncStatus('');

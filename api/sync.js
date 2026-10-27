@@ -4,6 +4,7 @@
 const { verifyGoogleUser } = require('../lib/auth');
 const { loadState, saveState } = require('../lib/userdata');
 const { judgeVisit } = require('../lib/proximity');
+const { publicId, recordDiscoveries } = require('../lib/profiles');
 
 const MAX_BYTES = 1024 * 1024;
 const ID = /^[nwr]\d{1,12}$/;
@@ -54,6 +55,9 @@ module.exports = async (req, res) => {
         state.visits[id] = { ...rest, ...judgeVisit(id, v, previous[id], now) };
       }
       const savedAt = await saveState(user.sub, state);
+      // Nouvelles visites vérifiées : candidates à « Découvert par » (lib/profiles.js).
+      const verified = Object.keys(state.visits).filter((id) => state.visits[id].verified && !previous[id]?.verified);
+      if (verified.length) await recordDiscoveries(publicId(user.sub), verified);
       return res.status(200).json({ savedAt, state });
     }
     return res.status(405).json({ error: 'GET ou PUT uniquement' });

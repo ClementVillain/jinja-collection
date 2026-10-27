@@ -44,6 +44,10 @@ export function CollectionProvider({ children }) {
   const [community, setCommunity] = useState(null);
   const [user, setUser] = useState(null);
   const [syncStatus, setSyncStatus] = useState({ text: '', error: false });
+  // Nom d'utilisateur public (undefined : pas encore lu ; null : pas encore choisi).
+  const [username, setUsernameState] = useState(undefined);
+  // « Découvert par » : { idSanctuaire: nom du premier visiteur vérifié }.
+  const [discoveries, setDiscoveries] = useState({});
   const stateRef = useRef(state);
   const tokenRef = useRef(null);
   const syncTimer = useRef(null);
@@ -68,6 +72,11 @@ export function CollectionProvider({ children }) {
       else if (tokenRef.current) syncNow();
     })();
     refreshCommunity();
+    refreshDiscoveries();
+  }, []);
+
+  const refreshDiscoveries = useCallback(() => {
+    apiJson('/api/discoveries').then(setDiscoveries).catch(() => {});
   }, []);
 
   const refreshCommunity = useCallback(() => {
@@ -168,6 +177,7 @@ export function CollectionProvider({ children }) {
   function setToken(token) {
     const payload = token && jwtPayload(token);
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
+    if (!valid || tokenRef.current !== token) setUsernameState(undefined);
     tokenRef.current = valid ? token : null;
     setUser(valid ? { name: payload.name || payload.email, givenName: payload.given_name, picture: payload.picture } : null);
     saveJson(KEYS.googleToken, valid ? token : null);
@@ -225,8 +235,11 @@ export function CollectionProvider({ children }) {
       if (!JinjaMerge.same(merged, remote)) {
         const { state: saved } = await apiJson('/api/sync', { token, method: 'PUT', body: merged });
         if (saved) persist(JinjaMerge.merge(saved, stateRef.current));
+        refreshDiscoveries();
       }
       setSyncStatus({ text: 'Synchronisé ✓', error: false });
+      const profile = await apiJson('/api/profile', { token });
+      setUsernameState(profile.username);
     } catch (err) {
       if (err.status === 401) setToken(null);
       setSyncStatus({ text: `Synchro impossible : ${err.message}`, error: true });
@@ -241,6 +254,16 @@ export function CollectionProvider({ children }) {
     clearTimeout(syncTimer.current);
     syncTimer.current = setTimeout(syncNow, 1200);
   }
+
+  // Choisit ou change le nom d'utilisateur public. Lève une erreur si le nom est pris.
+  const chooseUsername = async (name) => {
+    const token = await freshToken();
+    if (!token) throw new Error('connecte-toi avec Google');
+    const { username: saved } = await apiJson('/api/profile', { token, method: 'PUT', body: { username: name } });
+    setUsernameState(saved);
+    refreshDiscoveries();
+    return saved;
+  };
 
   // ---------- Photo partagée ----------
   // jpegUri : photo déjà redimensionnée en JPEG (expo-image-manipulator).
@@ -268,6 +291,7 @@ export function CollectionProvider({ children }) {
     markVisited, unmarkVisited, setNote, toggleWish, recordSighting,
     community, refreshCommunity, uploadPhoto,
     user, signIn, signOut, syncNow, syncStatus, googleSignInAvailable,
+    username, chooseUsername, discoveries, freshToken,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
