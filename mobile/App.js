@@ -128,7 +128,7 @@ function Main() {
         nav={nav}
         onStop={stop}
         onRecenter={() => setFollowing(true)}
-        onVisit={(id) => { c.markVisited(id); setCard({ id, isNew: true }); }}
+        onVisit={(id) => { if (!c.user) return; c.markVisited(id); setCard({ id, isNew: true }); }}
         isVisited={c.isVisited}
         onDismiss={dismissMessage}
       />

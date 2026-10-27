@@ -141,19 +141,24 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
         {visited ? (
           <>
             <Pressable style={[styles.btn, styles.primary]} onPress={() => onOpenCard(shrine.id)}><Text style={styles.primaryText}>Voir ma carte</Text></Pressable>
-            <Pressable style={[styles.btn, styles.ghost, { flex: 0, paddingHorizontal: 14 }]} onPress={() => c.unmarkVisited(shrine.id)}><Text style={styles.ghostText}>Retirer</Text></Pressable>
+            <Pressable style={[styles.btn, styles.ghost, { flex: 0, paddingHorizontal: 14 }]} onPress={() => (c.user ? c.unmarkVisited(shrine.id) : onLoginHint())}><Text style={styles.ghostText}>Retirer</Text></Pressable>
           </>
         ) : (
           <>
-            <Pressable style={[styles.btn, styles.primary]} onPress={() => { c.markVisited(shrine.id); onOpenCard(shrine.id, true); }}>
+            <Pressable style={[styles.btn, styles.primary]} onPress={() => { if (!c.user) { onLoginHint(); return; } c.markVisited(shrine.id); onOpenCard(shrine.id, true); }}>
               <Text style={styles.primaryText}>J'y suis allé ⛩</Text>
             </Pressable>
-            <Pressable style={[styles.btn, styles.ghost, wished && styles.wishOn]} onPress={() => c.toggleWish(shrine.id)}>
+            <Pressable style={[styles.btn, styles.ghost, wished && styles.wishOn]} onPress={() => (c.user ? c.toggleWish(shrine.id) : onLoginHint())}>
               <Text style={[styles.ghostText, wished && { color: colors.goldText }]}>{wished ? '★ Retirer' : '☆ À visiter'}</Text>
             </Pressable>
           </>
         )}
       </View>
+      {!c.user ? (
+        <Text style={styles.upload}>
+          {c.googleSignInAvailable ? 'Connecte-toi avec Google pour collectionner ce sanctuaire.' : "La connexion Google n'est pas disponible dans cette version de l'app : impossible de collectionner."}
+        </Text>
+      ) : null}
       {status ? <Text style={[styles.upload, status.ok && { color: colors.green }, status.error && { color: colors.vermilion }]}>{status.text}</Text> : null}
 
       <Pressable style={[styles.btn, styles.go]} onPress={() => onNavigate(shrine)}>

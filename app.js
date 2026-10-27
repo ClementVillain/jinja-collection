@@ -131,11 +131,15 @@
       ? `<div class="popup-status done">✓ Visité le ${new Date(visits[s.id].date).toLocaleDateString('fr-FR')}</div>`
       : wished ? '<div class="popup-status wish">★ Dans ta liste « À visiter »</div>'
       : '<div class="popup-status">Pas encore visité</div>';
+    // Sans compte, on peut regarder mais pas collectionner : les boutons invitent à se connecter.
+    const act = (action) => (googleToken ? action : 'login-hint');
     const actions = done
       ? `<button class="primary" data-action="card" data-id="${s.id}">Voir ma carte</button>
-         <button class="ghost small" data-action="unvisit" data-id="${s.id}">Retirer</button>`
-      : `<button class="primary" data-action="visit" data-id="${s.id}">J'y suis allé ⛩</button>
-         <button class="ghost wish-btn${wished ? ' on' : ''}" data-action="wish" data-id="${s.id}">${wished ? '★ Retirer' : '☆ À visiter'}</button>`;
+         <button class="ghost small" data-action="${act('unvisit')}" data-id="${s.id}">Retirer</button>`
+      : `<button class="primary" data-action="${act('visit')}" data-id="${s.id}">J'y suis allé ⛩</button>
+         <button class="ghost wish-btn${wished ? ' on' : ''}" data-action="${act('wish')}" data-id="${s.id}">${wished ? '★ Retirer' : '☆ À visiter'}</button>`;
+    const loginNote = googleToken || !googleClientId ? ''
+      : '<div class="popup-login">Connecte-toi avec Google pour collectionner ce sanctuaire.</div>';
     // Ajout de photo : icône en bas à droite de l'image (au centre quand il n'y a pas de photo).
     const addPhoto = !communityAvailable ? ''
       : googleToken
@@ -148,7 +152,7 @@
         ${addPhoto}
       </div>
       <div class="popup-name">${esc(s.name)}</div>${latin}${status}
-      <div class="popup-actions">${actions}</div>
+      <div class="popup-actions">${actions}</div>${loginNote}
       <div class="popup-upload-status" data-upload-status></div>
       <div class="popup-route-row">
         <button type="button" class="popup-route popup-go" data-action="navigate" data-id="${s.id}">➤ Y aller</button>
@@ -489,6 +493,7 @@
 
   // ---------- Actions ----------
   function markVisited(id) {
+    if (!googleToken) { showAccount(); return; }
     const now = new Date().toISOString();
     visits[id] = { date: now, note: '', updatedAt: now };
     delete deleted[id];
@@ -502,6 +507,7 @@
   }
 
   function unmarkVisited(id) {
+    if (!googleToken) { showAccount(); return; }
     const s = byId.get(id);
     if (!confirm(`Retirer « ${s.name} » de tes visites ? La carte postale sera perdue.`)) return;
     delete visits[id];
@@ -513,6 +519,7 @@
   }
 
   function toggleWish(id) {
+    if (!googleToken) { showAccount(); return; }
     const now = new Date().toISOString();
     if (wishlist[id]) { delete wishlist[id]; wishDeleted[id] = now; }
     else { wishlist[id] = { addedAt: now }; delete wishDeleted[id]; }
@@ -534,7 +541,7 @@
     else if (action === 'card') openCard(id);
     else if (action === 'locate') focusShrine(id);
     else if (action === 'wish') toggleWish(id);
-    else if (action === 'login-hint') showAccount();
+    else if (action === 'login-hint') { map.closePopup(); showAccount(); }
     else if (action === 'navigate') JinjaNav.start({ stops: [byId.get(id)], mode: routeMode });
   });
 
@@ -598,7 +605,7 @@
             <span class="item-sub">Ajouté le ${new Date(w.addedAt).toLocaleDateString('fr-FR')}</span>
           </span>
         </button>
-        <button class="ghost small" data-action="wish" data-id="${s.id}" title="Retirer de la liste">✕</button>
+        <button class="ghost small" data-action="${googleToken ? 'wish' : 'login-hint'}" data-id="${s.id}" title="Retirer de la liste">✕</button>
       </li>`).join('');
   }
 
@@ -841,13 +848,15 @@
     withCoverPhoto($('#modal-card'), s, visit, cardNumber(id));
     $('#modal-card').className = isNew ? 'reveal' : '';
     $('#modal-note').value = visit.note || '';
+    $('#modal-note').disabled = !googleToken;
+    $('#modal-note').placeholder = googleToken ? 'Un souvenir, un omamori acheté, la météo…' : 'Connecte-toi pour écrire une note de visite.';
     $('#card-modal').hidden = false;
   }
   function closeCard() { $('#card-modal').hidden = true; modalId = null; }
   document.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeCard));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#card-modal').hidden) closeCard(); });
   $('#modal-note').addEventListener('change', (e) => {
-    if (!modalId) return;
+    if (!modalId || !googleToken) return;
     visits[modalId].note = e.target.value.trim();
     visits[modalId].updatedAt = new Date().toISOString();
     saveVisits();
@@ -903,9 +912,14 @@
     const data = { app: 'jinja-collection', exportedAt: new Date().toISOString(), visits, wishlist };
     download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `jinja-collection-${new Date().toISOString().slice(0, 10)}.json`);
   });
+  // Restaurer une sauvegarde ajoute des visites : réservé aux comptes connectés, et le serveur
+  // applique ses règles (voir api/sync.js).
+  $('.file-btn').addEventListener('click', (e) => {
+    if (!googleToken) { e.preventDefault(); showAccount(); }
+  });
   $('#import-input').addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !googleToken) return;
     try {
       const data = JSON.parse(await file.text());
       const incoming = data.visits || {};
@@ -987,6 +1001,7 @@
       else localStorage.removeItem(TOKEN_KEY);
     } catch { /* ignore */ }
     renderAccount();
+    if (shrines.length) refreshPanels();
   }
 
   async function syncApi(method, body) {
@@ -1083,7 +1098,7 @@
         setToken(null);
       });
     } else {
-      el.innerHTML = `<p class="account-pitch">Connecte-toi pour retrouver tes cartes sur tous tes appareils.</p><div id="google-btn"></div>`;
+      el.innerHTML = `<p class="account-pitch">Connecte-toi pour collectionner les sanctuaires (visites, liste « À visiter », notes, photos) et retrouver tes cartes sur tous tes appareils.</p><div id="google-btn"></div>`;
       if (window.google?.accounts?.id) {
         google.accounts.id.renderButton($('#google-btn'), { theme: 'outline', size: 'medium', shape: 'pill', text: 'signin_with', locale: 'fr' });
       }

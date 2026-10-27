@@ -67,7 +67,8 @@ export default function PostcardModal({ id, isNew, onClose }) {
             value={note}
             onChangeText={setNote}
             onEndEditing={() => c.setNote(id, note)}
-            placeholder="Un souvenir, un omamori acheté, la météo…"
+            editable={!!c.user}
+            placeholder={c.user ? 'Un souvenir, un omamori acheté, la météo…' : 'Connecte-toi pour écrire une note de visite.'}
             placeholderTextColor={colors.muted}
             multiline
           />

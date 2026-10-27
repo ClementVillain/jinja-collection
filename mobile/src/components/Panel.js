@@ -38,7 +38,7 @@ function Account() {
   if (!c.user) {
     return (
       <View style={styles.account}>
-        <Text style={styles.accountPitch}>Connecte-toi pour retrouver tes cartes sur tous tes appareils (site et app).</Text>
+        <Text style={styles.accountPitch}>Connecte-toi pour collectionner les sanctuaires (visites, « À visiter », notes, photos) et retrouver tes cartes sur le site et l'app.</Text>
         <Pressable style={styles.googleBtn} onPress={c.signIn}><Text style={styles.googleText}>Se connecter avec Google</Text></Pressable>
       </View>
     );

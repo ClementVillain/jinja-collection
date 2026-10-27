@@ -77,7 +77,9 @@ export function CollectionProvider({ children }) {
     saveJson(KEYS.wishlist, next.wishlist);
     saveJson(KEYS.wishDeleted, next.wishDeleted);
   };
+  // Collectionner (visites, « À visiter », notes) demande un compte Google connecté.
   const update = (fn) => {
+    if (!tokenRef.current) return;
     const cur = stateRef.current;
     const next = fn({
       visits: { ...cur.visits }, deleted: { ...cur.deleted }, wishlist: { ...cur.wishlist }, wishDeleted: { ...cur.wishDeleted },
