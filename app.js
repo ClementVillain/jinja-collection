@@ -614,6 +614,7 @@
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + tab.dataset.tab));
     if (document.body.classList.contains('panel-collapsed')) setCollapsed(false);
+    if (tab.dataset.tab === 'friends') loadFriends();
   }));
 
   function refreshPanels() {
@@ -1060,7 +1061,7 @@
   function setToken(token) {
     const payload = token && jwtPayload(token);
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
-    if (!valid || googleToken !== token) username = undefined;
+    if (!valid || googleToken !== token) { username = undefined; friends = null; friendView = null; }
     googleToken = valid ? token : null;
     googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
     // Connecté, la collection est synchronisée : Sauvegarder / Restaurer deviennent inutiles.
@@ -1071,6 +1072,7 @@
     } catch { /* ignore */ }
     renderAccount();
     if (shrines.length) refreshPanels();
+    renderFriends();
   }
 
   const syncApi = (method, body) => syncApiAt('/api/sync', method, body);
@@ -1136,11 +1138,107 @@
     return syncing;
   }
 
+  // ---------- Amis (api/friends.js) ----------
+  // friends : null tant que la liste n'est pas chargée ; friendView : collection d'un ami ouverte.
+  let friends = null;
+  let friendView = null;
+  let friendsError = '';
+  const friendsApi = (method, body, query = '') => syncApiAt(`/api/friends${query}`, method, body);
+
+  async function loadFriends() {
+    if (!googleToken || !username) { renderFriends(); return; }
+    try { friends = await friendsApi('GET'); friendsError = ''; } catch (err) { friendsError = err.message; }
+    renderFriends();
+  }
+
+  async function friendAction(action, name) {
+    try { await friendsApi('POST', { action, username: name }); friendsError = ''; } catch (err) { friendsError = err.message; }
+    await loadFriends();
+  }
+
+  async function openFriend(name) {
+    friendView = { username: name, visits: null };
+    renderFriends();
+    try { friendView = await friendsApi('GET', null, `?user=${encodeURIComponent(name)}`); } catch (err) { friendView = null; friendsError = err.message; }
+    renderFriends();
+  }
+
+  function shrineLink(id) {
+    const s = byId.get(id);
+    return s ? `<button class="link-btn" data-action="locate" data-id="${s.id}">${esc(s.name)}</button>` : 'sanctuaire inconnu';
+  }
+
+  function renderFriends() {
+    const box = $('#friends-box');
+    const n = friends?.incoming.length || 0;
+    $('#friends-count').textContent = n;
+    $('#friends-count').hidden = !n;
+    if (!googleToken) {
+      box.innerHTML = `<p class="hint">Connecte-toi avec Google pour ajouter des amis et voir leurs collections.</p>
+        <button class="primary" data-action="login-hint">Se connecter</button>`;
+      return;
+    }
+    if (!username) {
+      box.innerHTML = `<p class="hint">Choisis d'abord ton nom d'utilisateur public (encart du compte, en haut) : c'est par ce nom que tes amis te trouvent.</p>`;
+      return;
+    }
+    const error = friendsError ? `<p class="friends-error">${esc(friendsError)}</p>` : '';
+    if (friendView) {
+      const ordered = Object.entries(friendView.visits || {})
+        .filter(([id]) => byId.has(id))
+        .sort((a, b) => a[1].date.localeCompare(b[1].date))
+        .map(([id, visit], i) => ({ shrine: byId.get(id), visit, number: i + 1 }));
+      box.innerHTML = `${error}
+        <button class="ghost small" data-friends="back">← Amis</button>
+        <h3 class="friends-title">Collection de @${esc(friendView.username)}${friendView.visits ? ` · ${ordered.length} carte${ordered.length > 1 ? 's' : ''}` : ''}</h3>
+        ${!friendView.visits ? '<p class="hint">Chargement…</p>' : ordered.length ? `<div class="card-grid">${[...ordered].reverse().map(({ shrine: s, visit, number }) => `
+          <button class="card-thumb rarity-${ShrineCard.rarityOf(s.id).key}" data-action="locate" data-id="${s.id}" title="${esc(s.name)} — ${new Date(visit.date).toLocaleDateString('fr-FR')}">
+            ${ShrineCard.render(s, visit, number)}
+          </button>`).join('')}</div>` : '<p class="hint">Sa collection est encore vide.</p>'}`;
+      return;
+    }
+    const item = (name, sub, buttons) => `<li class="item friend">
+        <span class="item-main"><span class="item-icon">${esc(name[0].toUpperCase())}</span>
+        <span class="item-text"><span class="item-name">@${esc(name)}</span>${sub ? `<span class="item-sub">${sub}</span>` : ''}</span></span>${buttons}</li>`;
+    box.innerHTML = `${error}
+      <form class="friend-add">
+        <input name="username" placeholder="Nom d'utilisateur d'un ami" required minlength="3" maxlength="20" autocomplete="off">
+        <button class="primary small" type="submit">Ajouter</button>
+      </form>
+      <p class="hint">Tu es <b>@${esc(username)}</b>. Tes amis voient tes cartes postales (sanctuaires et dates), jamais tes notes ni ta position.</p>
+      ${!friends ? '<p class="hint">Chargement…</p>' : `
+        ${friends.incoming.length ? `<h3 class="friends-title">Demandes reçues</h3><ul class="list">${friends.incoming.map((name) => item(name, 'veut être ton ami',
+          `<button class="primary small" data-friends="add" data-name="${esc(name)}">Accepter</button><button class="ghost small" data-friends="remove" data-name="${esc(name)}">Refuser</button>`)).join('')}</ul>` : ''}
+        <h3 class="friends-title">Mes amis</h3>
+        ${friends.friends.length ? `<ul class="list">${friends.friends.map((f) => item(f.username,
+          `${f.count} carte${f.count > 1 ? 's' : ''}${f.last ? ` · dernier : ${shrineLink(f.last.id)} (${new Date(f.last.date).toLocaleDateString('fr-FR')})` : ''}`,
+          `<button class="ghost small" data-friends="view" data-name="${esc(f.username)}">Collection</button><button class="ghost small" data-friends="remove" data-name="${esc(f.username)}" title="Retirer de mes amis">✕</button>`)).join('')}</ul>`
+          : '<p class="hint">Pas encore d\'amis. Ajoute-les par leur nom d\'utilisateur.</p>'}
+        ${friends.outgoing.length ? `<h3 class="friends-title">Demandes envoyées</h3><ul class="list">${friends.outgoing.map((name) => item(name, 'en attente',
+          `<button class="ghost small" data-friends="remove" data-name="${esc(name)}">Annuler</button>`)).join('')}</ul>` : ''}`}`;
+  }
+
+  $('#tab-friends').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-friends]');
+    if (!btn) return;
+    const { friends: action, name } = btn.dataset;
+    if (action === 'back') { friendView = null; renderFriends(); }
+    else if (action === 'view') openFriend(name);
+    else if (action === 'remove' && !confirm(`Retirer @${name} ?`)) return;
+    else if (action === 'add' || action === 'remove') friendAction(action, name);
+  });
+  $('#tab-friends').addEventListener('submit', (e) => {
+    if (!e.target.matches('.friend-add')) return;
+    e.preventDefault();
+    friendAction('add', e.target.elements.username.value.trim());
+  });
+
   async function loadProfile() {
     if (!googleToken || username !== undefined) return;
     try {
       ({ username } = await syncApiAt('/api/profile', 'GET'));
       renderAccount();
+      loadFriends();
     } catch { /* réessayé à la prochaine synchro */ }
   }
 
@@ -1193,6 +1291,7 @@
           ({ username } = await syncApiAt('/api/profile', 'PUT', { username: input.value }));
           editingName = false;
           renderAccount();
+          loadFriends();
           loadDiscoveries();
         } catch (err) {
           el.querySelector('[data-name-error]').textContent = err.message;
@@ -1204,7 +1303,7 @@
         setToken(null);
       });
     } else {
-      el.innerHTML = `<p class="account-pitch">Connecte-toi pour collectionner les sanctuaires (visites, liste « À visiter », notes, photos) et retrouver tes cartes sur tous tes appareils.</p><div id="google-btn"></div>`;
+      el.innerHTML = `<p class="account-pitch">Connecte-toi pour collectionner les sanctuaires et retrouver tes cartes partout.</p><div id="google-btn"></div>`;
       if (window.google?.accounts?.id) {
         google.accounts.id.renderButton($('#google-btn'), { theme: 'outline', size: 'medium', shape: 'pill', text: 'signin_with', locale: 'fr' });
       }

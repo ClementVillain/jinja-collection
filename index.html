@@ -36,6 +36,7 @@
       <button class="tab" data-tab="wish" role="tab">À visiter <span id="wish-count" class="badge badge-gold">0</span></button>
       <button class="tab" data-tab="visited" role="tab">Visités <span id="visited-count" class="badge">0</span></button>
       <button class="tab" data-tab="collection" role="tab">Collection</button>
+      <button class="tab" data-tab="friends" role="tab">Amis <span id="friends-count" class="badge" hidden>0</span></button>
     </nav>
 
     <section class="tab-panel active" id="tab-explore">
@@ -59,6 +60,10 @@
     <section class="tab-panel" id="tab-collection">
       <div id="card-grid" class="card-grid"></div>
       <p class="hint empty" id="collection-empty">Ta collection est vide. Chaque sanctuaire visité te donne une carte postale.</p>
+    </section>
+
+    <section class="tab-panel" id="tab-friends">
+      <div id="friends-box"></div>
     </section>
 
     <footer class="panel-footer">

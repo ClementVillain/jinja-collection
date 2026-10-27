@@ -73,6 +73,12 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .username-row { display: flex; gap: 6px; margin-top: 4px; }
 .username-row input { flex: 1; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
 .username-error { color: var(--vermilion); }
+#friends-count[hidden] { display: none; }
+.friend-add { display: flex; gap: 6px; margin-bottom: 6px; }
+.friend-add input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; }
+.friends-title { font-size: 14px; margin: 14px 0 4px; }
+.friends-error { color: var(--vermilion); font-size: 13px; }
+.item.friend .item-sub .link-btn { font-size: inherit; }
 .popup-login { margin-top: 6px; font-size: 12px; color: var(--muted); }
 .account-pitch { flex: 1; margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .account-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }

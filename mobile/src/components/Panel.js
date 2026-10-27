@@ -6,12 +6,13 @@ import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-shee
 import * as Location from 'expo-location';
 import JinjaRoute from '../shared/route';
 import { Postcard, useCoverPhoto } from './PostcardModal';
+import Friends from './Friends';
 import { shrines, byId, useCollection } from '../state/CollectionContext';
 import { fmtDate, fmtDistance, fmtDuration, latinName, normalize } from '../lib/text';
 import { colors, fonts } from '../theme';
 
 const SEARCH_INDEX = shrines.map((s) => ({ s, key: normalize(`${s.name} ${s.nameLatin} ${s.romaji}`) }));
-const TABS = [['explore', 'Explorer'], ['wish', 'À visiter'], ['visited', 'Visités'], ['collection', 'Collection']];
+const TABS = [['explore', 'Explorer'], ['wish', 'À visiter'], ['visited', 'Visités'], ['collection', 'Collection'], ['friends', 'Amis']];
 const MAX_ROUTE_STOPS = 25;
 
 function Item({ s, icon, iconStyle, sub, right, onPress }) {
@@ -270,6 +271,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
             </View>
           ) : <Text style={styles.hint}>Ta collection est vide. Chaque sanctuaire visité te donne une carte postale.</Text>
         ) : null}
+        {tab === 'friends' ? <Friends onSelect={onSelect} cardWidth={cardW} onLogin={() => setTab('explore')} /> : null}
         <Text style={styles.credit}>Données © OpenStreetMap · photos Wikimedia Commons</Text>
       </BottomSheetScrollView>
     </View>

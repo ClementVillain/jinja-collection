@@ -5,6 +5,7 @@ const { verifyGoogleUser } = require('../lib/auth');
 const { loadState, saveState } = require('../lib/userdata');
 const { judgeVisit } = require('../lib/proximity');
 const { publicId, recordDiscoveries } = require('../lib/profiles');
+const { writeShared, hasShared } = require('../lib/friends');
 
 const MAX_BYTES = 1024 * 1024;
 const ID = /^[nwr]\d{1,12}$/;
@@ -41,6 +42,8 @@ module.exports = async (req, res) => {
     const user = await verifyGoogleUser(req);
     if (req.method === 'GET') {
       const saved = await loadState(user.sub);
+      // Collection visible par les amis : créée au besoin pour les comptes antérieurs.
+      if (saved && !(await hasShared(publicId(user.sub)))) await writeShared(publicId(user.sub), saved.state.visits);
       return res.status(200).json(saved || { state: { visits: {}, deleted: {}, wishlist: {}, wishDeleted: {} }, savedAt: null });
     }
     if (req.method === 'PUT') {
@@ -58,6 +61,7 @@ module.exports = async (req, res) => {
       // Nouvelles visites vérifiées : candidates à « Découvert par » (lib/profiles.js).
       const verified = Object.keys(state.visits).filter((id) => state.visits[id].verified && !previous[id]?.verified);
       if (verified.length) await recordDiscoveries(publicId(user.sub), verified);
+      await writeShared(publicId(user.sub), state.visits);
       return res.status(200).json({ savedAt, state });
     }
     return res.status(405).json({ error: 'GET ou PUT uniquement' });
