@@ -1,9 +1,10 @@
-// Configuration dynamique : la connexion Google sur iPhone nécessite un « ID client iOS »
-// (Google Cloud Console). Tant qu'il n'est pas fourni, l'app se construit sans le module
-// de connexion configuré et masque le bouton.
-//   GOOGLE_IOS_CLIENT_ID=xxx.apps.googleusercontent.com npx expo run:ios --device
+// Configuration dynamique : connexion Google sur iPhone avec l'« ID client iOS » du projet
+// Google Cloud du site (même projet que l'ID client web, sinon le serveur refuse le jeton).
+// Il n'est pas secret. GOOGLE_IOS_CLIENT_ID permet d'en utiliser un autre, ou '' pour désactiver.
+const DEFAULT_IOS_CLIENT_ID = '972771617767-1pb96hsib2li41sp0rfgdfg0eqsrht1t.apps.googleusercontent.com';
+
 module.exports = ({ config }) => {
-  const iosClientId = process.env.GOOGLE_IOS_CLIENT_ID || '';
+  const iosClientId = process.env.GOOGLE_IOS_CLIENT_ID ?? DEFAULT_IOS_CLIENT_ID;
   const plugins = [...(config.plugins || [])];
   if (iosClientId) {
     // Schéma d'URL de retour attendu par Google : l'ID client à l'envers.

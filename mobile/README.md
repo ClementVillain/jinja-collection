@@ -51,14 +51,14 @@ npx expo run:ios --device          # version Debug, reliée à Metro
 
 En Debug, l'onglet Explorer propose un **mode simulation** pour tester la navigation sans bouger.
 
-## Connexion Google (optionnel)
+## Connexion Google
 
-Il faut un **ID client OAuth de type iOS** (Google Cloud Console › Identifiants › Créer un ID
-client OAuth › iOS, identifiant du bundle : `com.villainclement.jinjacollection`), puis :
+L'app utilise l'**ID client OAuth iOS** du projet Google Cloud du site (`app.config.js`), dans le
+même projet que l'ID client web : Google remet à l'app un jeton émis pour l'ID web, que le serveur
+vérifie comme pour le site. Le compte et ses données (visites, liste, notes) sont donc communs
+au site et à l'app. Après un changement d'ID client, régénère le projet natif :
 
 ```bash
-GOOGLE_IOS_CLIENT_ID=xxxx.apps.googleusercontent.com npx expo prebuild -p ios --clean
-GOOGLE_IOS_CLIENT_ID=xxxx.apps.googleusercontent.com npx expo run:ios --device --configuration Release
+npx expo prebuild -p ios
+npx expo run:ios --device --configuration Release
 ```
-
-Sans cet ID, l'app fonctionne sans compte (données gardées sur le téléphone).
