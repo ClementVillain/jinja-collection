@@ -293,7 +293,7 @@
   // ---------- Navigateur ----------
   const SPEED = { foot: 1.4, car: 11 }; // m/s, pour la simulation
   const ROUTE_RETRY = 15000;
-  let ctx = null; // fourni par app.js : { map, isVisited, markVisited, onStart, onStop }
+  let ctx = null; // fourni par app.js : { map, isVisited, markVisited, onStart, onStop, onGps }
   let nav = null;
   let session = 0;
   let ui = null;
@@ -403,6 +403,8 @@
       if (heading == null && previous && haversine(previous, point) > 5) heading = bearing(previous, point);
       if (!previous || haversine(previous, point) > 5) previous = point;
       onPosition({ point, accuracy: c.accuracy || 0, heading: heading ?? nav.pos?.heading ?? null });
+      // Vraies positions GPS seulement (jamais la simulation) : passages près des sanctuaires.
+      ctx.onGps?.({ lat: c.latitude, lon: c.longitude, acc: c.accuracy });
     }, (err) => {
       if (!nav || nav.id !== id) return;
       if (err.code === 1) fatal("Localisation refusée. Autorise l'accès à ta position dans les réglages du navigateur, puis relance la navigation.");

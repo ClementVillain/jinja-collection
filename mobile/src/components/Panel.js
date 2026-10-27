@@ -234,6 +234,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
               right={<Pressable style={styles.smallBtn} onPress={() => onOpenCard(s.id)}><Text style={styles.smallBtnText}>Carte</Text></Pressable>} />
           )) : <Text style={styles.hint}>Aucun sanctuaire visité pour l'instant. Ouvre un sanctuaire et touche « J'y suis allé ».</Text>
         ) : null}
+        {tab === 'visited' ? <Text style={styles.hint}>Une visite compte si ta position a été enregistrée à moins de 1 km du sanctuaire dans les 48 h précédentes (position gardée sur ton appareil, seule la position utilisée est envoyée avec la visite). Cela évite les cartes cochées depuis son canapé, mais pas la triche délibérée : un GPS falsifié trompe la vérification.</Text> : null}
 
         {tab === 'collection' ? (
           recent.length ? (

@@ -16,6 +16,9 @@
   // Liste « À visiter » : { id: { addedAt } }, et dates de retrait pour la synchronisation.
   let wishlist = loadJson(WISH_KEY);
   let wishDeleted = loadJson(WISH_DELETED_KEY);
+  // Passages récents (positions GPS des 48 dernières heures), gardés seulement dans le navigateur.
+  const SIGHTINGS_KEY = 'jinja-collection:sightings';
+  let sightings = (() => { try { return JSON.parse(localStorage.getItem(SIGHTINGS_KEY)) || []; } catch { return []; } })();
 
   function loadJson(key) {
     try { return JSON.parse(localStorage.getItem(key)) || {}; }
@@ -128,7 +131,8 @@
     const gmaps = `https://www.google.com/maps/search/?api=1&query=${s.lat}%2C${s.lon}`;
     const wished = isWished(s.id);
     const status = done
-      ? `<div class="popup-status done">✓ Visité le ${new Date(visits[s.id].date).toLocaleDateString('fr-FR')}</div>`
+      ? `<div class="popup-status done">✓ Visité le ${new Date(visits[s.id].date).toLocaleDateString('fr-FR')}</div>${visits[s.id].verified === false
+        ? '<div class="popup-unverified" title="Aucune position à moins de 1 km du sanctuaire dans les 48 h précédant la visite.">⚠ Visite non vérifiée (position non confirmée)</div>' : ''}`
       : wished ? '<div class="popup-status wish">★ Dans ta liste « À visiter »</div>'
       : '<div class="popup-status">Pas encore visité</div>';
     // Sans compte, on peut regarder mais pas collectionner : les boutons invitent à se connecter.
@@ -492,10 +496,55 @@
   }
 
   // ---------- Actions ----------
-  function markVisited(id) {
+  // ---------- Proximité : 1 km dans les 48 h (proximity.js, vérifié aussi par le serveur) ----------
+  function recordSighting(pos) {
+    sightings = JinjaProximity.addSighting(sightings, pos);
+    try { localStorage.setItem(SIGHTINGS_KEY, JSON.stringify(sightings)); } catch { /* ignore */ }
+  }
+  function gpsPosition(timeout = 10000) {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('localisation non disponible'));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy }),
+        reject,
+        { enableHighAccuracy: true, timeout, maximumAge: 60000 },
+      );
+    });
+  }
+  // À l'ouverture puis toutes les 3 min (page visible, connecté) : position enregistrée si la
+  // localisation est déjà autorisée. Sinon, l'autorisation n'est demandée qu'au moment de
+  // « J'y suis allé ».
+  async function sampleGps() {
+    if (!googleToken || document.hidden) return;
+    try {
+      const perm = await navigator.permissions?.query({ name: 'geolocation' });
+      if (perm?.state !== 'granted') return;
+      recordSighting(await gpsPosition());
+    } catch { /* pas de position : tant pis */ }
+  }
+  setInterval(sampleGps, 3 * 60 * 1000);
+  map.on('locationfound', (e) => recordSighting({ lat: e.latlng.lat, lon: e.latlng.lng, acc: e.accuracy }));
+
+  async function tryVisit(id) {
+    if (!googleToken) { showAccount(); return; }
+    const s = byId.get(id);
+    let proof = JinjaProximity.findProof(sightings, s);
+    if (!proof) {
+      try { recordSighting(await gpsPosition(15000)); } catch { /* traité plus bas */ }
+      proof = JinjaProximity.findProof(sightings, s);
+    }
+    if (!proof) {
+      alert(`Pour collectionner « ${s.name} », il faut être passé à moins de 1 km du sanctuaire dans les 48 dernières heures.\n\n`
+        + "Ta position n'a pas été enregistrée près d'ici. Autorise la localisation et réessaie sur place.");
+      return;
+    }
+    markVisited(id, proof);
+  }
+
+  function markVisited(id, proof) {
     if (!googleToken) { showAccount(); return; }
     const now = new Date().toISOString();
-    visits[id] = { date: now, note: '', updatedAt: now };
+    visits[id] = { date: now, note: '', updatedAt: now, proof };
     delete deleted[id];
     // Visité : il sort de la liste « À visiter ».
     if (wishlist[id]) { delete wishlist[id]; wishDeleted[id] = now; }
@@ -536,7 +585,7 @@
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const { action, id } = btn.dataset;
-    if (action === 'visit') markVisited(id);
+    if (action === 'visit') tryVisit(id);
     else if (action === 'unvisit') unmarkVisited(id);
     else if (action === 'card') openCard(id);
     else if (action === 'locate') focusShrine(id);
@@ -737,7 +786,8 @@
   JinjaNav.setup({
     map,
     isVisited,
-    markVisited,
+    markVisited: tryVisit,
+    onGps: recordSighting,
     onStart() {
       if (!navRestore) {
         navRestore = { sheet: sheetState(), hidden: document.body.classList.contains('panel-hidden') };
@@ -1047,9 +1097,13 @@
     setSyncStatus('Synchronisation…');
     syncing = (async () => {
       const { state: remote } = await syncApi('GET');
-      const merged = JinjaMerge.merge({ visits, deleted, wishlist, wishDeleted }, remote);
+      // Le compte d'abord : à égalité, la version du serveur (avec le statut de vérification) l'emporte.
+      const merged = JinjaMerge.merge(remote, { visits, deleted, wishlist, wishDeleted });
       applyMerged(merged);
-      if (!JinjaMerge.same(merged, remote)) await syncApi('PUT', merged);
+      if (!JinjaMerge.same(merged, remote)) {
+        const { state: saved } = await syncApi('PUT', merged);
+        if (saved) applyMerged(JinjaMerge.merge(saved, { visits, deleted, wishlist, wishDeleted }));
+      }
       setSyncStatus('Synchronisé ✓');
     })()
       .catch((err) => setSyncStatus('Synchro impossible : ' + err.message, true))
@@ -1117,12 +1171,12 @@
       script.onload = () => {
         google.accounts.id.initialize({
           client_id: googleClientId,
-          callback: ({ credential }) => { setToken(credential); syncNow(); },
+          callback: ({ credential }) => { setToken(credential); syncNow(); sampleGps(); },
           auto_select: true,
           use_fedcm_for_prompt: true,
         });
         renderAccount();
-        if (googleToken) syncNow(); else silentLogin();
+        if (googleToken) { syncNow(); sampleGps(); } else silentLogin();
       };
       document.head.append(script);
     })

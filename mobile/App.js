@@ -3,7 +3,7 @@
 // postale pour chacun, prépare des circuits et laisse-toi guider jusqu'à eux.
 import 'react-native-gesture-handler';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,6 +39,7 @@ function Main() {
     onFollow: (point, first) => map.current?.easeTo(point[1], point[0], first ? 17 : undefined),
     onStart: () => { sheetBefore.current = sheetIndex.current; sheet.current?.close(); },
     onStop: () => sheet.current?.snapToIndex(sheetBefore.current),
+    onGps: c.recordSighting,
   });
 
   const select = useCallback((id) => {
@@ -54,6 +55,7 @@ function Main() {
     if (status !== 'granted') return;
     setShowUser(true);
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    c.recordSighting({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy });
     map.current?.flyTo(pos.coords.latitude, pos.coords.longitude, 14);
   };
 
@@ -128,7 +130,10 @@ function Main() {
         nav={nav}
         onStop={stop}
         onRecenter={() => setFollowing(true)}
-        onVisit={(id) => { if (!c.user) return; c.markVisited(id); setCard({ id, isNew: true }); }}
+        onVisit={async (id) => {
+          const error = await c.markVisited(id);
+          if (error) Alert.alert('Visite impossible', error); else setCard({ id, isNew: true });
+        }}
         isVisited={c.isVisited}
         onDismiss={dismissMessage}
       />

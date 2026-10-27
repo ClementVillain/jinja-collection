@@ -2,7 +2,10 @@
 // Même modèle de données que le site web ({ visits, deleted, wishlist, wishDeleted }) et même
 // fusion (merge.js) : le compte Google synchronise le site et l'app.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import * as Location from 'expo-location';
 import JinjaMerge from '../shared/merge';
+import JinjaProximity from '../shared/proximity';
 import { API_BASE, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, apiJson } from '../lib/api';
 import { KEYS, loadJson, saveJson } from '../lib/store';
 import { fetchCommunityPhotos } from '../lib/photos';
@@ -46,6 +49,8 @@ export function CollectionProvider({ children }) {
   const syncTimer = useRef(null);
   const syncing = useRef(false);
   const syncAgain = useRef(false);
+  // Passages récents (positions GPS des 48 dernières heures), gardés seulement sur le téléphone.
+  const sightings = useRef([]);
 
   // ---------- Chargement ----------
   useEffect(() => {
@@ -57,6 +62,7 @@ export function CollectionProvider({ children }) {
       stateRef.current = loaded;
       setState(loaded);
       setReady(true);
+      sightings.current = await loadJson(KEYS.sightings, []);
       setToken(await loadJson(KEYS.googleToken, null));
       if (GoogleSignin && !tokenRef.current) silentLogin();
       else if (tokenRef.current) syncNow();
@@ -91,9 +97,47 @@ export function CollectionProvider({ children }) {
   const isVisited = useCallback((id) => Object.prototype.hasOwnProperty.call(state.visits, id), [state]);
   const isWished = useCallback((id) => !isVisited(id) && Object.prototype.hasOwnProperty.call(state.wishlist, id), [state, isVisited]);
 
-  const markVisited = (id) => update((s) => {
+  // ---------- Proximité : 1 km dans les 48 h (shared/proximity.js, vérifié aussi par le serveur) ----------
+  const recordSighting = useCallback((pos) => {
+    sightings.current = JinjaProximity.addSighting(sightings.current, pos);
+    saveJson(KEYS.sightings, sightings.current);
+  }, []);
+
+  async function gpsSample(ask) {
+    const perm = ask ? await Location.requestForegroundPermissionsAsync() : await Location.getForegroundPermissionsAsync();
+    if (perm.status !== 'granted') return;
+    const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    recordSighting({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy });
+  }
+
+  // Connecté : position enregistrée à l'ouverture de l'app, au retour au premier plan,
+  // puis toutes les 3 minutes tant que l'app est ouverte.
+  useEffect(() => {
+    if (!user) return undefined;
+    gpsSample(true).catch(() => {});
+    const timer = setInterval(() => { if (AppState.currentState === 'active') gpsSample(false).catch(() => {}); }, 3 * 60 * 1000);
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') gpsSample(false).catch(() => {}); });
+    return () => { clearInterval(timer); sub.remove(); };
+  }, [!!user]);
+
+  // Renvoie null si la visite est enregistrée, sinon le message d'erreur à afficher.
+  const markVisited = async (id) => {
+    if (!tokenRef.current) return 'Connecte-toi avec Google pour collectionner ce sanctuaire.';
+    const shrine = byId.get(id);
+    let proof = JinjaProximity.findProof(sightings.current, shrine);
+    if (!proof) {
+      try { await gpsSample(true); } catch { /* traité plus bas */ }
+      proof = JinjaProximity.findProof(sightings.current, shrine);
+    }
+    if (!proof) {
+      return `Pour collectionner ce sanctuaire, il faut être passé à moins de 1 km dans les 48 dernières heures. Ta position n'a pas été enregistrée près d'ici : autorise la localisation et réessaie sur place.`;
+    }
+    addVisit(id, proof);
+    return null;
+  };
+  const addVisit = (id, proof) => update((s) => {
     const now = new Date().toISOString();
-    s.visits[id] = { date: now, note: '', updatedAt: now };
+    s.visits[id] = { date: now, note: '', updatedAt: now, proof };
     delete s.deleted[id];
     // Visité : il sort de la liste « À visiter ».
     if (s.wishlist[id]) { delete s.wishlist[id]; s.wishDeleted[id] = now; }
@@ -175,9 +219,13 @@ export function CollectionProvider({ children }) {
     setSyncStatus({ text: 'Synchronisation…', error: false });
     try {
       const { state: remote } = await apiJson('/api/sync', { token });
-      const merged = JinjaMerge.merge(stateRef.current, remote);
+      // Le compte d'abord : à égalité, la version du serveur (avec le statut de vérification) l'emporte.
+      const merged = JinjaMerge.merge(remote, stateRef.current);
       persist(merged);
-      if (!JinjaMerge.same(merged, remote)) await apiJson('/api/sync', { token, method: 'PUT', body: merged });
+      if (!JinjaMerge.same(merged, remote)) {
+        const { state: saved } = await apiJson('/api/sync', { token, method: 'PUT', body: merged });
+        if (saved) persist(JinjaMerge.merge(saved, stateRef.current));
+      }
       setSyncStatus({ text: 'Synchronisé ✓', error: false });
     } catch (err) {
       if (err.status === 401) setToken(null);
@@ -217,7 +265,7 @@ export function CollectionProvider({ children }) {
 
   const value = {
     ready, ...state, isVisited, isWished, visitedOrdered,
-    markVisited, unmarkVisited, setNote, toggleWish,
+    markVisited, unmarkVisited, setNote, toggleWish, recordSighting,
     community, refreshCommunity, uploadPhoto,
     user, signIn, signOut, syncNow, syncStatus, googleSignInAvailable,
   };

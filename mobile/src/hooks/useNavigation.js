@@ -16,12 +16,12 @@ const ROUTE_RETRY = 15000;
 const KEEP_AWAKE_TAG = 'jinja-navigation';
 const now = () => Date.now();
 
-export default function useNavigation({ onFollow, onStart, onStop }) {
+export default function useNavigation({ onFollow, onStart, onStop, onGps }) {
   const navRef = useRef(null);
   const session = useRef(0);
   const [snapshot, setSnapshot] = useState(null);
-  const callbacks = useRef({ onFollow, onStart, onStop });
-  callbacks.current = { onFollow, onStart, onStop };
+  const callbacks = useRef({ onFollow, onStart, onStop, onGps });
+  callbacks.current = { onFollow, onStart, onStop, onGps };
 
   // ---------- Rendu : instantané lisible par l'interface ----------
   const render = useCallback(() => {
@@ -179,6 +179,8 @@ export default function useNavigation({ onFollow, onStart, onStop }) {
         if (heading == null && previous && haversine(previous, pt) > 5) heading = bearing(previous, pt);
         if (!previous || haversine(previous, pt) > 5) previous = pt;
         onPosition({ point: pt, accuracy: c.accuracy || 0, heading: heading ?? cur.pos?.heading ?? null });
+        // Vraies positions GPS seulement (jamais la simulation) : passages près des sanctuaires.
+        callbacks.current.onGps?.({ lat: c.latitude, lon: c.longitude, acc: c.accuracy });
       },
     );
     if (!navRef.current || navRef.current.id !== id) nav.watch?.remove();

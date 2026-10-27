@@ -1,7 +1,9 @@
 // GET /api/sync  → { state, savedAt } du compte connecté (state = { visits, deleted, wishlist, wishDeleted })
-// PUT /api/sync  → enregistre l'état fusionné envoyé par le navigateur
+// PUT /api/sync  → enregistre l'état fusionné envoyé par le navigateur, et renvoie l'état
+//                  enregistré (avec le statut de vérification de chaque visite)
 const { verifyGoogleUser } = require('../lib/auth');
 const { loadState, saveState } = require('../lib/userdata');
+const { judgeVisit } = require('../lib/proximity');
 
 const MAX_BYTES = 1024 * 1024;
 const ID = /^[nwr]\d{1,12}$/;
@@ -16,6 +18,7 @@ function cleanState(input) {
       date: v.date,
       note: typeof v.note === 'string' ? v.note.slice(0, 500) : '',
       ...(isDate(v.updatedAt) ? { updatedAt: v.updatedAt } : {}),
+      ...(v.proof && typeof v.proof === 'object' ? { proof: { lat: v.proof.lat, lon: v.proof.lon, at: v.proof.at } } : {}),
     };
   }
   for (const [id, d] of Object.entries(input?.deleted || {})) {
@@ -43,8 +46,15 @@ module.exports = async (req, res) => {
       const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
       if (raw.length > MAX_BYTES) return res.status(413).json({ error: 'Données trop volumineuses' });
       const state = cleanState(typeof req.body === 'string' ? JSON.parse(req.body) : req.body);
+      // Règle de proximité (lib/proximity.js) : le statut est décidé ici, jamais par le client.
+      const previous = (await loadState(user.sub))?.state?.visits || {};
+      const now = Date.now();
+      for (const [id, v] of Object.entries(state.visits)) {
+        const { proof, ...rest } = v;
+        state.visits[id] = { ...rest, ...judgeVisit(id, v, previous[id], now) };
+      }
       const savedAt = await saveState(user.sub, state);
-      return res.status(200).json({ savedAt });
+      return res.status(200).json({ savedAt, state });
     }
     return res.status(405).json({ error: 'GET ou PUT uniquement' });
   } catch (err) {

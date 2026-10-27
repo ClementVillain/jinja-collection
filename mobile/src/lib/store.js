@@ -9,6 +9,7 @@ export const KEYS = {
   wishDeleted: 'jinja-collection:wish-deleted',
   photos: 'jinja-collection:photos',
   googleToken: 'jinja-collection:google-token',
+  sightings: 'jinja-collection:sightings',
 };
 
 export async function loadJson(key, fallback = {}) {

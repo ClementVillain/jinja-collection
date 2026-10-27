@@ -62,6 +62,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .account[hidden] { display: none; }
 .account.pulse { animation: pulse 1.2s ease-out 2; }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(214, 59, 35, 0.55); } 100% { box-shadow: 0 0 0 12px rgba(214, 59, 35, 0); } }
+.popup-unverified { margin: -4px 0 8px; font-size: 12px; color: #9a6a00; }
 .popup-login { margin-top: 6px; font-size: 12px; color: var(--muted); }
 .account-pitch { flex: 1; margin: 0; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .account-avatar { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
