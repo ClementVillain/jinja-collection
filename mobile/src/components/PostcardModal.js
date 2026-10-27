@@ -13,10 +13,11 @@ import { colors, fonts } from '../theme';
 // Crédit en texte simple sur la carte.
 const cardCredit = (photo) => creditOf(photo).replace(/^Photo de /, '');
 
-export function Postcard({ id, width, photo }) {
+// entry : { visit, number } d'une autre collection (celle d'un ami) ; sinon la sienne.
+export function Postcard({ id, width, photo, entry: other }) {
   const c = useCollection();
   const shrine = byId.get(id);
-  const entry = c.visitedOrdered.find((v) => v.shrine.id === id);
+  const entry = other || c.visitedOrdered.find((v) => v.shrine.id === id);
   if (!shrine || !entry) return null;
   const xml = ShrineCard.render(shrine, entry.visit, entry.number, photo ? { src: photo.src, credit: cardCredit(photo) } : undefined);
   return <SvgXml xml={xml} width={width} height={width * (520 / 600)} />;
@@ -67,7 +68,8 @@ export default function PostcardModal({ id, isNew, onClose }) {
             value={note}
             onChangeText={setNote}
             onEndEditing={() => c.setNote(id, note)}
-            placeholder="Un souvenir, un omamori acheté, la météo…"
+            editable={!!c.user}
+            placeholder={c.user ? 'Un souvenir, un omamori acheté, la météo…' : 'Connecte-toi pour écrire une note de visite.'}
             placeholderTextColor={colors.muted}
             multiline
           />

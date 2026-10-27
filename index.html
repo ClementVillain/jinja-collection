@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=30">
 </head>
 <body>
   <aside class="panel">
@@ -36,6 +36,7 @@
       <button class="tab" data-tab="wish" role="tab">À visiter <span id="wish-count" class="badge badge-gold">0</span></button>
       <button class="tab" data-tab="visited" role="tab">Visités <span id="visited-count" class="badge">0</span></button>
       <button class="tab" data-tab="collection" role="tab">Collection</button>
+      <button class="tab" data-tab="friends" role="tab">Amis <span id="friends-count" class="badge" hidden>0</span></button>
     </nav>
 
     <section class="tab-panel active" id="tab-explore">
@@ -52,12 +53,17 @@
 
     <section class="tab-panel" id="tab-visited">
       <ul id="visited-list" class="list"></ul>
+      <p class="hint rule-hint">Une visite compte si ta position a été enregistrée à moins de 1 km du sanctuaire dans les 48 h précédentes (position gardée sur ton appareil, seule la position utilisée est envoyée avec la visite). Cela évite les cartes cochées depuis son canapé, mais pas la triche délibérée : un GPS falsifié trompe la vérification.</p>
       <p class="hint empty" id="visited-empty">Aucun sanctuaire visité pour l'instant. Ouvre un sanctuaire sur la carte et clique sur « J'y suis allé ».</p>
     </section>
 
     <section class="tab-panel" id="tab-collection">
       <div id="card-grid" class="card-grid"></div>
       <p class="hint empty" id="collection-empty">Ta collection est vide. Chaque sanctuaire visité te donne une carte postale.</p>
+    </section>
+
+    <section class="tab-panel" id="tab-friends">
+      <div id="friends-box"></div>
     </section>
 
     <footer class="panel-footer">
@@ -86,10 +92,11 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
-  <script src="merge.js?v=29"></script>
-  <script src="route.js?v=29"></script>
-  <script src="navigation.js?v=29"></script>
-  <script src="card.js?v=29"></script>
-  <script src="app.js?v=29"></script>
+  <script src="merge.js?v=30"></script>
+  <script src="proximity.js?v=30"></script>
+  <script src="route.js?v=30"></script>
+  <script src="navigation.js?v=30"></script>
+  <script src="card.js?v=30"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>

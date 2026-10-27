@@ -1,7 +1,11 @@
 // GET /api/sync  → { state, savedAt } du compte connecté (state = { visits, deleted, wishlist, wishDeleted })
-// PUT /api/sync  → enregistre l'état fusionné envoyé par le navigateur
+// PUT /api/sync  → enregistre l'état fusionné envoyé par le navigateur, et renvoie l'état
+//                  enregistré (avec le statut de vérification de chaque visite)
 const { verifyGoogleUser } = require('../lib/auth');
 const { loadState, saveState } = require('../lib/userdata');
+const { judgeVisit } = require('../lib/proximity');
+const { publicId, recordDiscoveries } = require('../lib/profiles');
+const { writeShared, hasShared } = require('../lib/friends');
 
 const MAX_BYTES = 1024 * 1024;
 const ID = /^[nwr]\d{1,12}$/;
@@ -16,6 +20,7 @@ function cleanState(input) {
       date: v.date,
       note: typeof v.note === 'string' ? v.note.slice(0, 500) : '',
       ...(isDate(v.updatedAt) ? { updatedAt: v.updatedAt } : {}),
+      ...(v.proof && typeof v.proof === 'object' ? { proof: { lat: v.proof.lat, lon: v.proof.lon, at: v.proof.at } } : {}),
     };
   }
   for (const [id, d] of Object.entries(input?.deleted || {})) {
@@ -37,14 +42,27 @@ module.exports = async (req, res) => {
     const user = await verifyGoogleUser(req);
     if (req.method === 'GET') {
       const saved = await loadState(user.sub);
+      // Collection visible par les amis : créée au besoin pour les comptes antérieurs.
+      if (saved && !(await hasShared(publicId(user.sub)))) await writeShared(publicId(user.sub), saved.state.visits);
       return res.status(200).json(saved || { state: { visits: {}, deleted: {}, wishlist: {}, wishDeleted: {} }, savedAt: null });
     }
     if (req.method === 'PUT') {
       const raw = typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {});
       if (raw.length > MAX_BYTES) return res.status(413).json({ error: 'Données trop volumineuses' });
       const state = cleanState(typeof req.body === 'string' ? JSON.parse(req.body) : req.body);
+      // Règle de proximité (lib/proximity.js) : le statut est décidé ici, jamais par le client.
+      const previous = (await loadState(user.sub))?.state?.visits || {};
+      const now = Date.now();
+      for (const [id, v] of Object.entries(state.visits)) {
+        const { proof, ...rest } = v;
+        state.visits[id] = { ...rest, ...judgeVisit(id, v, previous[id], now) };
+      }
       const savedAt = await saveState(user.sub, state);
-      return res.status(200).json({ savedAt });
+      // Nouvelles visites vérifiées : candidates à « Découvert par » (lib/profiles.js).
+      const verified = Object.keys(state.visits).filter((id) => state.visits[id].verified && !previous[id]?.verified);
+      if (verified.length) await recordDiscoveries(publicId(user.sub), verified);
+      await writeShared(publicId(user.sub), state.visits);
+      return res.status(200).json({ savedAt, state });
     }
     return res.status(405).json({ error: 'GET ou PUT uniquement' });
   } catch (err) {

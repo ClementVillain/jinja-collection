@@ -83,6 +83,7 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
   const [slides, setSlides] = useState(null);
   const [status, setStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const width = Dimensions.get('window').width - 32;
   const visited = c.isVisited(shrine.id);
   const wished = c.isWished(shrine.id);
@@ -133,27 +134,52 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
 
       <Text style={styles.name}>{shrine.name}</Text>
       {latin ? <Text style={styles.latin}>{latin}</Text> : null}
+      {c.discoveries[shrine.id] ? (
+        <View style={styles.discoverer}>
+          <SvgXml width={13} height={13} xml={`<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="${colors.vermilion}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />
+          <Text style={styles.discovererText}>Découvert par <Text style={{ fontWeight: '700', color: colors.ink }}>{c.discoveries[shrine.id]}</Text></Text>
+        </View>
+      ) : null}
       <Text style={[styles.status, visited && styles.statusDone, wished && styles.statusWish]}>
         {visited ? `✓ Visité le ${fmtDate(c.visits[shrine.id].date)}` : wished ? '★ Dans ta liste « À visiter »' : 'Pas encore visité'}
       </Text>
+      {visited && c.visits[shrine.id].verified === false ? (
+        <Text style={styles.unverified}>⚠ Visite non vérifiée : aucune position à moins de 1 km dans les 48 h précédant la visite.</Text>
+      ) : null}
 
       <View style={styles.actions}>
         {visited ? (
           <>
             <Pressable style={[styles.btn, styles.primary]} onPress={() => onOpenCard(shrine.id)}><Text style={styles.primaryText}>Voir ma carte</Text></Pressable>
-            <Pressable style={[styles.btn, styles.ghost, { flex: 0, paddingHorizontal: 14 }]} onPress={() => c.unmarkVisited(shrine.id)}><Text style={styles.ghostText}>Retirer</Text></Pressable>
+            <Pressable style={[styles.btn, styles.ghost, { flex: 0, paddingHorizontal: 14 }]} onPress={() => (c.user ? c.unmarkVisited(shrine.id) : onLoginHint())}><Text style={styles.ghostText}>Retirer</Text></Pressable>
           </>
         ) : (
           <>
-            <Pressable style={[styles.btn, styles.primary]} onPress={() => { c.markVisited(shrine.id); onOpenCard(shrine.id, true); }}>
-              <Text style={styles.primaryText}>J'y suis allé ⛩</Text>
+            <Pressable
+              style={[styles.btn, styles.primary, checking && { opacity: 0.6 }]}
+              disabled={checking}
+              onPress={async () => {
+                if (!c.user) { onLoginHint(); return; }
+                setChecking(true);
+                setStatus(null);
+                const error = await c.markVisited(shrine.id);
+                setChecking(false);
+                if (error) setStatus({ error: true, text: error }); else onOpenCard(shrine.id, true);
+              }}
+            >
+              <Text style={styles.primaryText}>{checking ? 'Vérification de ta position…' : "J'y suis allé ⛩"}</Text>
             </Pressable>
-            <Pressable style={[styles.btn, styles.ghost, wished && styles.wishOn]} onPress={() => c.toggleWish(shrine.id)}>
+            <Pressable style={[styles.btn, styles.ghost, wished && styles.wishOn]} onPress={() => (c.user ? c.toggleWish(shrine.id) : onLoginHint())}>
               <Text style={[styles.ghostText, wished && { color: colors.goldText }]}>{wished ? '★ Retirer' : '☆ À visiter'}</Text>
             </Pressable>
           </>
         )}
       </View>
+      {!c.user ? (
+        <Text style={styles.upload}>
+          {c.googleSignInAvailable ? 'Connecte-toi avec Google pour collectionner ce sanctuaire.' : "La connexion Google n'est pas disponible dans cette version de l'app : impossible de collectionner."}
+        </Text>
+      ) : null}
       {status ? <Text style={[styles.upload, status.ok && { color: colors.green }, status.error && { color: colors.vermilion }]}>{status.text}</Text> : null}
 
       <Pressable style={[styles.btn, styles.go]} onPress={() => onNavigate(shrine)}>
@@ -195,6 +221,9 @@ const styles = StyleSheet.create({
   ghost: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line },
   ghostText: { color: colors.ink, fontWeight: '600', fontSize: 15 },
   wishOn: { borderColor: colors.gold },
+  discoverer: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  discovererText: { fontSize: 12, color: colors.muted },
+  unverified: { fontSize: 12, color: '#9a6a00', marginTop: -6, marginBottom: 10 },
   upload: { fontSize: 13, color: colors.muted, marginTop: 8 },
   go: { flex: 0, marginTop: 10, backgroundColor: colors.ink },
   goText: { color: '#fff', fontWeight: '700', fontSize: 15 },

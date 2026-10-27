@@ -16,6 +16,9 @@
   // Liste « À visiter » : { id: { addedAt } }, et dates de retrait pour la synchronisation.
   let wishlist = loadJson(WISH_KEY);
   let wishDeleted = loadJson(WISH_DELETED_KEY);
+  // Passages récents (positions GPS des 48 dernières heures), gardés seulement dans le navigateur.
+  const SIGHTINGS_KEY = 'jinja-collection:sightings';
+  let sightings = (() => { try { return JSON.parse(localStorage.getItem(SIGHTINGS_KEY)) || []; } catch { return []; } })();
 
   function loadJson(key) {
     try { return JSON.parse(localStorage.getItem(key)) || {}; }
@@ -128,14 +131,19 @@
     const gmaps = `https://www.google.com/maps/search/?api=1&query=${s.lat}%2C${s.lon}`;
     const wished = isWished(s.id);
     const status = done
-      ? `<div class="popup-status done">✓ Visité le ${new Date(visits[s.id].date).toLocaleDateString('fr-FR')}</div>`
+      ? `<div class="popup-status done">✓ Visité le ${new Date(visits[s.id].date).toLocaleDateString('fr-FR')}</div>${visits[s.id].verified === false
+        ? '<div class="popup-unverified" title="Aucune position à moins de 1 km du sanctuaire dans les 48 h précédant la visite.">⚠ Visite non vérifiée (position non confirmée)</div>' : ''}`
       : wished ? '<div class="popup-status wish">★ Dans ta liste « À visiter »</div>'
       : '<div class="popup-status">Pas encore visité</div>';
+    // Sans compte, on peut regarder mais pas collectionner : les boutons invitent à se connecter.
+    const act = (action) => (googleToken ? action : 'login-hint');
     const actions = done
       ? `<button class="primary" data-action="card" data-id="${s.id}">Voir ma carte</button>
-         <button class="ghost small" data-action="unvisit" data-id="${s.id}">Retirer</button>`
-      : `<button class="primary" data-action="visit" data-id="${s.id}">J'y suis allé ⛩</button>
-         <button class="ghost wish-btn${wished ? ' on' : ''}" data-action="wish" data-id="${s.id}">${wished ? '★ Retirer' : '☆ À visiter'}</button>`;
+         <button class="ghost small" data-action="${act('unvisit')}" data-id="${s.id}">Retirer</button>`
+      : `<button class="primary" data-action="${act('visit')}" data-id="${s.id}">J'y suis allé ⛩</button>
+         <button class="ghost wish-btn${wished ? ' on' : ''}" data-action="${act('wish')}" data-id="${s.id}">${wished ? '★ Retirer' : '☆ À visiter'}</button>`;
+    const loginNote = googleToken || !googleClientId ? ''
+      : '<div class="popup-login">Connecte-toi avec Google pour collectionner ce sanctuaire.</div>';
     // Ajout de photo : icône en bas à droite de l'image (au centre quand il n'y a pas de photo).
     const addPhoto = !communityAvailable ? ''
       : googleToken
@@ -147,8 +155,8 @@
         <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
         ${addPhoto}
       </div>
-      <div class="popup-name">${esc(s.name)}</div>${latin}${status}
-      <div class="popup-actions">${actions}</div>
+      <div class="popup-name">${esc(s.name)}</div>${latin}${discoveredHtml(s.id)}${status}
+      <div class="popup-actions">${actions}</div>${loginNote}
       <div class="popup-upload-status" data-upload-status></div>
       <div class="popup-route-row">
         <button type="button" class="popup-route popup-go" data-action="navigate" data-id="${s.id}">➤ Y aller</button>
@@ -156,6 +164,21 @@
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>`;
   }
+
+  // ---------- « Découvert par » : premier visiteur vérifié de chaque sanctuaire ----------
+  let discoveries = {};
+  const DISCOVERER_ICON = `<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  function discoveredHtml(id) {
+    const name = discoveries[id];
+    return name ? `<div class="popup-discoverer" title="Premier visiteur de ce sanctuaire (visite vérifiée)">${DISCOVERER_ICON} Découvert par <b>${esc(name)}</b></div>` : '';
+  }
+  function loadDiscoveries() {
+    fetch('/api/discoveries')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (data) discoveries = data; })
+      .catch(() => { /* serveur local sans /api */ });
+  }
+  loadDiscoveries();
 
   // ---------- Photos de couverture ----------
   // Ordre de recherche : Google Maps (si la clé est configurée sur Vercel), photo liée dans
@@ -488,9 +511,55 @@
   }
 
   // ---------- Actions ----------
-  function markVisited(id) {
+  // ---------- Proximité : 1 km dans les 48 h (proximity.js, vérifié aussi par le serveur) ----------
+  function recordSighting(pos) {
+    sightings = JinjaProximity.addSighting(sightings, pos);
+    try { localStorage.setItem(SIGHTINGS_KEY, JSON.stringify(sightings)); } catch { /* ignore */ }
+  }
+  function gpsPosition(timeout = 10000) {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) return reject(new Error('localisation non disponible'));
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy }),
+        reject,
+        { enableHighAccuracy: true, timeout, maximumAge: 60000 },
+      );
+    });
+  }
+  // À l'ouverture puis toutes les 3 min (page visible, connecté) : position enregistrée si la
+  // localisation est déjà autorisée. Sinon, l'autorisation n'est demandée qu'au moment de
+  // « J'y suis allé ».
+  async function sampleGps() {
+    if (!googleToken || document.hidden) return;
+    try {
+      const perm = await navigator.permissions?.query({ name: 'geolocation' });
+      if (perm?.state !== 'granted') return;
+      recordSighting(await gpsPosition());
+    } catch { /* pas de position : tant pis */ }
+  }
+  setInterval(sampleGps, 3 * 60 * 1000);
+  map.on('locationfound', (e) => recordSighting({ lat: e.latlng.lat, lon: e.latlng.lng, acc: e.accuracy }));
+
+  async function tryVisit(id) {
+    if (!googleToken) { showAccount(); return; }
+    const s = byId.get(id);
+    let proof = JinjaProximity.findProof(sightings, s);
+    if (!proof) {
+      try { recordSighting(await gpsPosition(15000)); } catch { /* traité plus bas */ }
+      proof = JinjaProximity.findProof(sightings, s);
+    }
+    if (!proof) {
+      alert(`Pour collectionner « ${s.name} », il faut être passé à moins de 1 km du sanctuaire dans les 48 dernières heures.\n\n`
+        + "Ta position n'a pas été enregistrée près d'ici. Autorise la localisation et réessaie sur place.");
+      return;
+    }
+    markVisited(id, proof);
+  }
+
+  function markVisited(id, proof) {
+    if (!googleToken) { showAccount(); return; }
     const now = new Date().toISOString();
-    visits[id] = { date: now, note: '', updatedAt: now };
+    visits[id] = { date: now, note: '', updatedAt: now, proof };
     delete deleted[id];
     // Visité : il sort de la liste « À visiter ».
     if (wishlist[id]) { delete wishlist[id]; wishDeleted[id] = now; }
@@ -502,6 +571,7 @@
   }
 
   function unmarkVisited(id) {
+    if (!googleToken) { showAccount(); return; }
     const s = byId.get(id);
     if (!confirm(`Retirer « ${s.name} » de tes visites ? La carte postale sera perdue.`)) return;
     delete visits[id];
@@ -513,6 +583,7 @@
   }
 
   function toggleWish(id) {
+    if (!googleToken) { showAccount(); return; }
     const now = new Date().toISOString();
     if (wishlist[id]) { delete wishlist[id]; wishDeleted[id] = now; }
     else { wishlist[id] = { addedAt: now }; delete wishDeleted[id]; }
@@ -529,12 +600,12 @@
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const { action, id } = btn.dataset;
-    if (action === 'visit') markVisited(id);
+    if (action === 'visit') tryVisit(id);
     else if (action === 'unvisit') unmarkVisited(id);
     else if (action === 'card') openCard(id);
     else if (action === 'locate') focusShrine(id);
     else if (action === 'wish') toggleWish(id);
-    else if (action === 'login-hint') showAccount();
+    else if (action === 'login-hint') { map.closePopup(); showAccount(); }
     else if (action === 'navigate') JinjaNav.start({ stops: [byId.get(id)], mode: routeMode });
   });
 
@@ -543,6 +614,7 @@
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + tab.dataset.tab));
     if (document.body.classList.contains('panel-collapsed')) setCollapsed(false);
+    if (tab.dataset.tab === 'friends') loadFriends();
   }));
 
   function refreshPanels() {
@@ -598,7 +670,7 @@
             <span class="item-sub">Ajouté le ${new Date(w.addedAt).toLocaleDateString('fr-FR')}</span>
           </span>
         </button>
-        <button class="ghost small" data-action="wish" data-id="${s.id}" title="Retirer de la liste">✕</button>
+        <button class="ghost small" data-action="${googleToken ? 'wish' : 'login-hint'}" data-id="${s.id}" title="Retirer de la liste">✕</button>
       </li>`).join('');
   }
 
@@ -730,7 +802,8 @@
   JinjaNav.setup({
     map,
     isVisited,
-    markVisited,
+    markVisited: tryVisit,
+    onGps: recordSighting,
     onStart() {
       if (!navRestore) {
         navRestore = { sheet: sheetState(), hidden: document.body.classList.contains('panel-hidden') };
@@ -841,13 +914,15 @@
     withCoverPhoto($('#modal-card'), s, visit, cardNumber(id));
     $('#modal-card').className = isNew ? 'reveal' : '';
     $('#modal-note').value = visit.note || '';
+    $('#modal-note').disabled = !googleToken;
+    $('#modal-note').placeholder = googleToken ? 'Un souvenir, un omamori acheté, la météo…' : 'Connecte-toi pour écrire une note de visite.';
     $('#card-modal').hidden = false;
   }
   function closeCard() { $('#card-modal').hidden = true; modalId = null; }
   document.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', closeCard));
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#card-modal').hidden) closeCard(); });
   $('#modal-note').addEventListener('change', (e) => {
-    if (!modalId) return;
+    if (!modalId || !googleToken) return;
     visits[modalId].note = e.target.value.trim();
     visits[modalId].updatedAt = new Date().toISOString();
     saveVisits();
@@ -903,9 +978,14 @@
     const data = { app: 'jinja-collection', exportedAt: new Date().toISOString(), visits, wishlist };
     download(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), `jinja-collection-${new Date().toISOString().slice(0, 10)}.json`);
   });
+  // Restaurer une sauvegarde ajoute des visites : réservé aux comptes connectés, et le serveur
+  // applique ses règles (voir api/sync.js).
+  $('.file-btn').addEventListener('click', (e) => {
+    if (!googleToken) { e.preventDefault(); showAccount(); }
+  });
   $('#import-input').addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || !googleToken) return;
     try {
       const data = JSON.parse(await file.text());
       const incoming = data.visits || {};
@@ -967,6 +1047,9 @@
   let syncing = null;
   let syncAgain = false;
   let syncStatus = { text: '', error: false };
+  // Nom d'utilisateur public (undefined : pas encore lu ; null : pas encore choisi).
+  let username;
+  let editingName = false;
 
   function jwtPayload(token) {
     try {
@@ -978,6 +1061,7 @@
   function setToken(token) {
     const payload = token && jwtPayload(token);
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
+    if (!valid || googleToken !== token) { username = undefined; friends = null; friendView = null; }
     googleToken = valid ? token : null;
     googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
     // Connecté, la collection est synchronisée : Sauvegarder / Restaurer deviennent inutiles.
@@ -987,10 +1071,13 @@
       else localStorage.removeItem(TOKEN_KEY);
     } catch { /* ignore */ }
     renderAccount();
+    if (shrines.length) refreshPanels();
+    renderFriends();
   }
 
-  async function syncApi(method, body) {
-    const res = await fetch('/api/sync', {
+  const syncApi = (method, body) => syncApiAt('/api/sync', method, body);
+  async function syncApiAt(path, method, body) {
+    const res = await fetch(path, {
       method,
       headers: { Authorization: `Bearer ${googleToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,
@@ -1032,10 +1119,16 @@
     setSyncStatus('Synchronisation…');
     syncing = (async () => {
       const { state: remote } = await syncApi('GET');
-      const merged = JinjaMerge.merge({ visits, deleted, wishlist, wishDeleted }, remote);
+      // Le compte d'abord : à égalité, la version du serveur (avec le statut de vérification) l'emporte.
+      const merged = JinjaMerge.merge(remote, { visits, deleted, wishlist, wishDeleted });
       applyMerged(merged);
-      if (!JinjaMerge.same(merged, remote)) await syncApi('PUT', merged);
+      if (!JinjaMerge.same(merged, remote)) {
+        const { state: saved } = await syncApi('PUT', merged);
+        if (saved) applyMerged(JinjaMerge.merge(saved, { visits, deleted, wishlist, wishDeleted }));
+        loadDiscoveries();
+      }
       setSyncStatus('Synchronisé ✓');
+      loadProfile();
     })()
       .catch((err) => setSyncStatus('Synchro impossible : ' + err.message, true))
       .finally(() => {
@@ -1043,6 +1136,110 @@
         if (syncAgain) { syncAgain = false; scheduleSync(); }
       });
     return syncing;
+  }
+
+  // ---------- Amis (api/friends.js) ----------
+  // friends : null tant que la liste n'est pas chargée ; friendView : collection d'un ami ouverte.
+  let friends = null;
+  let friendView = null;
+  let friendsError = '';
+  const friendsApi = (method, body, query = '') => syncApiAt(`/api/friends${query}`, method, body);
+
+  async function loadFriends() {
+    if (!googleToken || !username) { renderFriends(); return; }
+    try { friends = await friendsApi('GET'); friendsError = ''; } catch (err) { friendsError = err.message; }
+    renderFriends();
+  }
+
+  async function friendAction(action, name) {
+    try { await friendsApi('POST', { action, username: name }); friendsError = ''; } catch (err) { friendsError = err.message; }
+    await loadFriends();
+  }
+
+  async function openFriend(name) {
+    friendView = { username: name, visits: null };
+    renderFriends();
+    try { friendView = await friendsApi('GET', null, `?user=${encodeURIComponent(name)}`); } catch (err) { friendView = null; friendsError = err.message; }
+    renderFriends();
+  }
+
+  function shrineLink(id) {
+    const s = byId.get(id);
+    return s ? `<button class="link-btn" data-action="locate" data-id="${s.id}">${esc(s.name)}</button>` : 'sanctuaire inconnu';
+  }
+
+  function renderFriends() {
+    const box = $('#friends-box');
+    const n = friends?.incoming.length || 0;
+    $('#friends-count').textContent = n;
+    $('#friends-count').hidden = !n;
+    if (!googleToken) {
+      box.innerHTML = `<p class="hint">Connecte-toi avec Google pour ajouter des amis et voir leurs collections.</p>
+        <button class="primary" data-action="login-hint">Se connecter</button>`;
+      return;
+    }
+    if (!username) {
+      box.innerHTML = `<p class="hint">Choisis d'abord ton nom d'utilisateur public (encart du compte, en haut) : c'est par ce nom que tes amis te trouvent.</p>`;
+      return;
+    }
+    const error = friendsError ? `<p class="friends-error">${esc(friendsError)}</p>` : '';
+    if (friendView) {
+      const ordered = Object.entries(friendView.visits || {})
+        .filter(([id]) => byId.has(id))
+        .sort((a, b) => a[1].date.localeCompare(b[1].date))
+        .map(([id, visit], i) => ({ shrine: byId.get(id), visit, number: i + 1 }));
+      box.innerHTML = `${error}
+        <button class="ghost small" data-friends="back">← Amis</button>
+        <h3 class="friends-title">Collection de @${esc(friendView.username)}${friendView.visits ? ` · ${ordered.length} carte${ordered.length > 1 ? 's' : ''}` : ''}</h3>
+        ${!friendView.visits ? '<p class="hint">Chargement…</p>' : ordered.length ? `<div class="card-grid">${[...ordered].reverse().map(({ shrine: s, visit, number }) => `
+          <button class="card-thumb rarity-${ShrineCard.rarityOf(s.id).key}" data-action="locate" data-id="${s.id}" title="${esc(s.name)} — ${new Date(visit.date).toLocaleDateString('fr-FR')}">
+            ${ShrineCard.render(s, visit, number)}
+          </button>`).join('')}</div>` : '<p class="hint">Sa collection est encore vide.</p>'}`;
+      return;
+    }
+    const item = (name, sub, buttons) => `<li class="item friend">
+        <span class="item-main"><span class="item-icon">${esc(name[0].toUpperCase())}</span>
+        <span class="item-text"><span class="item-name">@${esc(name)}</span>${sub ? `<span class="item-sub">${sub}</span>` : ''}</span></span>${buttons}</li>`;
+    box.innerHTML = `${error}
+      <form class="friend-add">
+        <input name="username" placeholder="Nom d'utilisateur d'un ami" required minlength="3" maxlength="20" autocomplete="off">
+        <button class="primary small" type="submit">Ajouter</button>
+      </form>
+      <p class="hint">Tu es <b>@${esc(username)}</b>. Tes amis voient tes cartes postales (sanctuaires et dates), jamais tes notes ni ta position.</p>
+      ${!friends ? '<p class="hint">Chargement…</p>' : `
+        ${friends.incoming.length ? `<h3 class="friends-title">Demandes reçues</h3><ul class="list">${friends.incoming.map((name) => item(name, 'veut être ton ami',
+          `<button class="primary small" data-friends="add" data-name="${esc(name)}">Accepter</button><button class="ghost small" data-friends="remove" data-name="${esc(name)}">Refuser</button>`)).join('')}</ul>` : ''}
+        <h3 class="friends-title">Mes amis</h3>
+        ${friends.friends.length ? `<ul class="list">${friends.friends.map((f) => item(f.username,
+          `${f.count} carte${f.count > 1 ? 's' : ''}${f.last ? ` · dernier : ${shrineLink(f.last.id)} (${new Date(f.last.date).toLocaleDateString('fr-FR')})` : ''}`,
+          `<button class="ghost small" data-friends="view" data-name="${esc(f.username)}">Collection</button><button class="ghost small" data-friends="remove" data-name="${esc(f.username)}" title="Retirer de mes amis">✕</button>`)).join('')}</ul>`
+          : '<p class="hint">Pas encore d\'amis. Ajoute-les par leur nom d\'utilisateur.</p>'}
+        ${friends.outgoing.length ? `<h3 class="friends-title">Demandes envoyées</h3><ul class="list">${friends.outgoing.map((name) => item(name, 'en attente',
+          `<button class="ghost small" data-friends="remove" data-name="${esc(name)}">Annuler</button>`)).join('')}</ul>` : ''}`}`;
+  }
+
+  $('#tab-friends').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-friends]');
+    if (!btn) return;
+    const { friends: action, name } = btn.dataset;
+    if (action === 'back') { friendView = null; renderFriends(); }
+    else if (action === 'view') openFriend(name);
+    else if (action === 'remove' && !confirm(`Retirer @${name} ?`)) return;
+    else if (action === 'add' || action === 'remove') friendAction(action, name);
+  });
+  $('#tab-friends').addEventListener('submit', (e) => {
+    if (!e.target.matches('.friend-add')) return;
+    e.preventDefault();
+    friendAction('add', e.target.elements.username.value.trim());
+  });
+
+  async function loadProfile() {
+    if (!googleToken || username !== undefined) return;
+    try {
+      ({ username } = await syncApiAt('/api/profile', 'GET'));
+      renderAccount();
+      loadFriends();
+    } catch { /* réessayé à la prochaine synchro */ }
   }
 
   function scheduleSync() {
@@ -1074,16 +1271,39 @@
         ${googleUser.picture ? `<img class="account-avatar" src="${esc(googleUser.picture)}" alt="" referrerpolicy="no-referrer">` : ''}
         <div class="account-text">
           <span class="account-name">${esc(googleUser.name)}</span>
+          ${username ? `<span class="account-username">@${esc(username)} · <button type="button" class="link-btn" data-edit-name>modifier</button></span>` : ''}
           <span id="sync-status" class="account-status ${syncStatus.error ? 'error' : ''}">${esc(syncStatus.text)}</span>
         </div>
-        <button id="logout-btn" class="ghost small" type="button">Déconnexion</button>`;
+        <button id="logout-btn" class="ghost small" type="button">Déconnexion</button>
+        ${username === null || editingName ? `
+          <form class="username-form">
+            <label>${username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <small>(visible par les autres : amis, « Découvert par »)</small>
+              <span class="username-row"><input name="username" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]{3,20}" placeholder="ex : kitsune_77" value="${esc(username || '')}" autocomplete="off">
+              <button class="primary small" type="submit">OK</button></span>
+            </label>
+            <span class="username-error" data-name-error></span>
+          </form>` : ''}`;
+      el.querySelector('[data-edit-name]')?.addEventListener('click', () => { editingName = true; renderAccount(); });
+      el.querySelector('.username-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const input = e.target.elements.username;
+        try {
+          ({ username } = await syncApiAt('/api/profile', 'PUT', { username: input.value }));
+          editingName = false;
+          renderAccount();
+          loadFriends();
+          loadDiscoveries();
+        } catch (err) {
+          el.querySelector('[data-name-error]').textContent = err.message;
+        }
+      });
       $('#logout-btn').addEventListener('click', () => {
         try { google.accounts.id.disableAutoSelect(); localStorage.removeItem(LOGGED_KEY); } catch { /* ignore */ }
         setSyncStatus('');
         setToken(null);
       });
     } else {
-      el.innerHTML = `<p class="account-pitch">Connecte-toi pour retrouver tes cartes sur tous tes appareils.</p><div id="google-btn"></div>`;
+      el.innerHTML = `<p class="account-pitch">Connecte-toi pour collectionner les sanctuaires et retrouver tes cartes partout.</p><div id="google-btn"></div>`;
       if (window.google?.accounts?.id) {
         google.accounts.id.renderButton($('#google-btn'), { theme: 'outline', size: 'medium', shape: 'pill', text: 'signin_with', locale: 'fr' });
       }
@@ -1102,12 +1322,12 @@
       script.onload = () => {
         google.accounts.id.initialize({
           client_id: googleClientId,
-          callback: ({ credential }) => { setToken(credential); syncNow(); },
+          callback: ({ credential }) => { setToken(credential); syncNow(); sampleGps(); },
           auto_select: true,
           use_fedcm_for_prompt: true,
         });
         renderAccount();
-        if (googleToken) syncNow(); else silentLogin();
+        if (googleToken) { syncNow(); sampleGps(); } else silentLogin();
       };
       document.head.append(script);
     })

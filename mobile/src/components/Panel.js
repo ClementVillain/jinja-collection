@@ -6,12 +6,13 @@ import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-shee
 import * as Location from 'expo-location';
 import JinjaRoute from '../shared/route';
 import { Postcard, useCoverPhoto } from './PostcardModal';
+import Friends from './Friends';
 import { shrines, byId, useCollection } from '../state/CollectionContext';
 import { fmtDate, fmtDistance, fmtDuration, latinName, normalize } from '../lib/text';
 import { colors, fonts } from '../theme';
 
 const SEARCH_INDEX = shrines.map((s) => ({ s, key: normalize(`${s.name} ${s.nameLatin} ${s.romaji}`) }));
-const TABS = [['explore', 'Explorer'], ['wish', 'À visiter'], ['visited', 'Visités'], ['collection', 'Collection']];
+const TABS = [['explore', 'Explorer'], ['wish', 'À visiter'], ['visited', 'Visités'], ['collection', 'Collection'], ['friends', 'Amis']];
 const MAX_ROUTE_STOPS = 25;
 
 function Item({ s, icon, iconStyle, sub, right, onPress }) {
@@ -32,25 +33,52 @@ function Item({ s, icon, iconStyle, sub, right, onPress }) {
   );
 }
 
+function UsernameForm({ onDone }) {
+  const c = useCollection();
+  const [value, setValue] = useState(c.username || '');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    setBusy(true); setError('');
+    try { await c.chooseUsername(value); onDone?.(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+  };
+  return (
+    <View style={styles.nameForm}>
+      <Text style={styles.nameLabel}>{c.username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <Text style={{ color: colors.muted }}>(visible par les autres : amis, « Découvert par »)</Text></Text>
+      <View style={styles.nameRow}>
+        <BottomSheetTextInput style={[styles.search, { flex: 1, marginBottom: 0 }]} value={value} onChangeText={setValue} autoCapitalize="none" autoCorrect={false}
+          placeholder="ex : kitsune_77" placeholderTextColor={colors.muted} maxLength={20} onSubmitEditing={submit} />
+        <Pressable style={[styles.goBtn, { paddingHorizontal: 16 }, busy && { opacity: 0.5 }]} disabled={busy} onPress={submit}><Text style={styles.goText}>OK</Text></Pressable>
+      </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
 function Account() {
   const c = useCollection();
+  const [editing, setEditing] = useState(false);
   if (!c.googleSignInAvailable) return null;
   if (!c.user) {
     return (
       <View style={styles.account}>
-        <Text style={styles.accountPitch}>Connecte-toi pour retrouver tes cartes sur tous tes appareils (site et app).</Text>
+        <Text style={styles.accountPitch}>Connecte-toi pour collectionner les sanctuaires (visites, « À visiter », notes, photos) et retrouver tes cartes sur le site et l'app.</Text>
         <Pressable style={styles.googleBtn} onPress={c.signIn}><Text style={styles.googleText}>Se connecter avec Google</Text></Pressable>
       </View>
     );
   }
   return (
-    <View style={styles.account}>
+    <View style={[styles.account, { flexWrap: 'wrap' }]}>
       {c.user.picture ? <Image source={{ uri: c.user.picture }} style={styles.accountAvatar} /> : null}
       <View style={{ flex: 1 }}>
         <Text style={styles.accountName} numberOfLines={1}>{c.user.name}</Text>
+        {c.username ? (
+          <Text style={styles.accountUsername}>@{c.username} · <Text style={styles.link} onPress={() => setEditing(true)}>modifier</Text></Text>
+        ) : null}
         <Text style={[styles.accountStatus, c.syncStatus.error && { color: colors.vermilion }]}>{c.syncStatus.text}</Text>
       </View>
       <Pressable style={styles.smallBtn} onPress={c.signOut}><Text style={styles.smallBtnText}>Déconnexion</Text></Pressable>
+      {c.username === null || editing ? <UsernameForm onDone={() => setEditing(false)} /> : null}
     </View>
   );
 }
@@ -234,6 +262,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
               right={<Pressable style={styles.smallBtn} onPress={() => onOpenCard(s.id)}><Text style={styles.smallBtnText}>Carte</Text></Pressable>} />
           )) : <Text style={styles.hint}>Aucun sanctuaire visité pour l'instant. Ouvre un sanctuaire et touche « J'y suis allé ».</Text>
         ) : null}
+        {tab === 'visited' ? <Text style={styles.hint}>Une visite compte si ta position a été enregistrée à moins de 1 km du sanctuaire dans les 48 h précédentes (position gardée sur ton appareil, seule la position utilisée est envoyée avec la visite). Cela évite les cartes cochées depuis son canapé, mais pas la triche délibérée : un GPS falsifié trompe la vérification.</Text> : null}
 
         {tab === 'collection' ? (
           recent.length ? (
@@ -242,6 +271,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
             </View>
           ) : <Text style={styles.hint}>Ta collection est vide. Chaque sanctuaire visité te donne une carte postale.</Text>
         ) : null}
+        {tab === 'friends' ? <Friends onSelect={onSelect} cardWidth={cardW} onLogin={() => setTab('explore')} /> : null}
         <Text style={styles.credit}>Données © OpenStreetMap · photos Wikimedia Commons</Text>
       </BottomSheetScrollView>
     </View>
@@ -283,6 +313,11 @@ const styles = StyleSheet.create({
   accountPitch: { flex: 1, fontSize: 12, color: colors.muted },
   accountAvatar: { width: 32, height: 32, borderRadius: 16 },
   accountName: { fontSize: 14, fontWeight: '600', color: colors.ink },
+  accountUsername: { fontSize: 11, color: colors.muted },
+  link: { color: colors.vermilion, textDecorationLine: 'underline' },
+  nameForm: { flexBasis: '100%', marginTop: 4 },
+  nameLabel: { fontSize: 12, color: colors.ink, marginBottom: 6 },
+  nameRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   accountStatus: { fontSize: 11, color: colors.green },
   googleBtn: { borderWidth: 1, borderColor: colors.line, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
   googleText: { fontSize: 13, fontWeight: '600', color: colors.ink },
