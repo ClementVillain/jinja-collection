@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.villainclement.jinjacollection",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "DZGF8CAR26"
     },
     "android": {
       "package": "com.villainclement.jinjacollection",
