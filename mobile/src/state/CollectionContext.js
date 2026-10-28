@@ -283,7 +283,7 @@ export function CollectionProvider({ children }) {
       setSyncStatus({ text: 'Synchronisé ✓', error: false });
       const info = await apiJson('/api/profile', { token });
       setUsernameState(info.username);
-      setProfile({ since: info.since || null, friends: info.friends ?? 0 });
+      setProfile({ since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null });
     } catch (err) {
       if (err.status === 401) setToken(null);
       setSyncStatus({ text: `Synchro impossible : ${err.message}`, error: true });
@@ -307,6 +307,23 @@ export function CollectionProvider({ children }) {
     setUsernameState(saved);
     refreshDiscoveries();
     return saved;
+  };
+
+  // ---------- Photo de profil et bannière ----------
+  // kind : 'avatar' | 'banner' ; jpegUri : image déjà recadrée en JPEG, ou null pour revenir
+  // à la photo Google / bannière par défaut.
+  const setProfileImage = async (kind, jpegUri) => {
+    const token = await freshToken();
+    if (!token) throw new Error('connecte-toi pour personnaliser ton profil');
+    const res = await fetch(`${API_BASE}/api/profile-image?kind=${kind}`, {
+      method: jpegUri ? 'POST' : 'DELETE',
+      headers: { Authorization: `Bearer ${token}`, ...(jpegUri ? { 'Content-Type': 'application/octet-stream' } : {}) },
+      body: jpegUri ? await (await fetch(jpegUri)).blob() : undefined,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `erreur ${res.status}`);
+    setProfile((p) => ({ ...(p || {}), [kind]: body.url }));
+    return body.url;
   };
 
   // ---------- Photo partagée ----------
@@ -334,6 +351,7 @@ export function CollectionProvider({ children }) {
     ready, ...state, isVisited, isWished, visitedOrdered,
     markVisited, unmarkVisited, setNote, toggleWish, recordSighting,
     community, refreshCommunity, uploadPhoto,
+    setProfileImage,
     user, signIn, signInWithApple, signOut, syncNow, syncStatus, googleSignInAvailable, appleSignInAvailable, profile,
     username, chooseUsername, discoveries, freshToken,
   };

@@ -51,7 +51,7 @@ function useCityPlaces(query) {
 }
 
 function Item({ s, icon, iconStyle, sub, right, onPress }) {
-  const iconColor = iconStyle === styles.iconVisited ? '#fff' : iconStyle === styles.iconWish ? colors.gold : null;
+  const iconColor = iconStyle === styles.iconVisited ? '#fff' : iconStyle === styles.iconWish ? colors.accent : null;
   const latin = latinName(s);
   return (
     <View style={styles.item}>
@@ -163,7 +163,7 @@ function RouteBox({ items, excluded, route, setRoute, onStart, onFocusRoute, sim
           ))}
         </View>
       </View>
-      <View style={styles.option}><Switch value={fromMe} onValueChange={setFromMe} trackColor={{ true: colors.vermilion }} /><Text style={styles.optionText}>Partir de ma position</Text></View>
+      <View style={styles.option}><Switch value={fromMe} onValueChange={setFromMe} trackColor={{ true: colors.accentStrong }} /><Text style={styles.optionText}>Partir de ma position</Text></View>
       <Pressable style={[styles.goBtn, (!enough || busy) && { opacity: 0.5 }]} disabled={!enough || busy} onPress={compute}>
         <Text style={styles.goText}>{busy ? 'Calcul du circuit…' : enough ? `Tracer le circuit (${stops.length} sanctuaire${stops.length > 1 ? 's' : ''})` : 'Coche au moins 2 sanctuaires'}</Text>
       </Pressable>
@@ -242,8 +242,8 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
       <View style={styles.tabs}>
         {TABS.map(([k, label]) => (
           <Pressable key={k} style={[styles.tab, tab === k && styles.tabOn]} onPress={() => setTab(k)}>
-            <Text style={[styles.tabText, tab === k && { color: colors.vermilion }]}>{label}</Text>
-            {k === 'wish' ? <View style={[styles.badge, { backgroundColor: colors.gold }]}><Text style={styles.badgeText}>{wishItems.length}</Text></View> : null}
+            <Text style={[styles.tabText, tab === k && { color: colors.accentStrong }]}>{label}</Text>
+            {k === 'wish' ? <View style={[styles.badge, { backgroundColor: colors.accent }]}><Text style={styles.badgeText}>{wishItems.length}</Text></View> : null}
             {k === 'collection' ? <View style={styles.badge}><Text style={styles.badgeText}>{n}</Text></View> : null}
           </Pressable>
         ))}
@@ -278,7 +278,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
             )}
             {__DEV__ ? (
               <View style={[styles.option, { marginTop: 18 }]}>
-                <Switch value={simulate} onValueChange={setSimulate} trackColor={{ true: colors.vermilion }} />
+                <Switch value={simulate} onValueChange={setSimulate} trackColor={{ true: colors.accentStrong }} />
                 <Text style={styles.optionText}>Mode simulation (tests de navigation)</Text>
               </View>
             ) : null}
@@ -296,7 +296,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
                 right={(
                   <View style={styles.itemRight}>
                     {wishItems.length > 1 ? (
-                      <Switch value={!excluded.has(s.id)} trackColor={{ true: colors.vermilion }} style={{ transform: [{ scale: 0.8 }] }}
+                      <Switch value={!excluded.has(s.id)} trackColor={{ true: colors.accentStrong }} style={{ transform: [{ scale: 0.8 }] }}
                         onValueChange={(on) => setExcluded((e) => { const x = new Set(e); if (on) x.delete(s.id); else x.add(s.id); return x; })} />
                     ) : null}
                     <Pressable style={styles.smallBtn} onPress={() => c.toggleWish(s.id)}><Text style={styles.smallBtnText}>✕</Text></Pressable>
@@ -326,17 +326,17 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
 
 const styles = StyleSheet.create({
   brand: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingBottom: 8 },
-  brandMark: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.vermilion, alignItems: 'center', justifyContent: 'center' },
+  brandMark: { width: 38, height: 38, borderRadius: 10, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
   brandMarkText: { color: '#fff', fontSize: 19 },
   title: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 19, color: colors.ink },
   progress: { fontSize: 12, color: colors.muted, marginTop: 1 },
   bar: { height: 4, marginHorizontal: 16, marginBottom: 6, backgroundColor: colors.paper2, borderRadius: 4, overflow: 'hidden' },
-  barFill: { height: '100%', backgroundColor: colors.vermilion },
+  barFill: { height: '100%', backgroundColor: colors.accentStrong },
   tabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.line, paddingHorizontal: 8 },
   tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: 'transparent', marginBottom: -1 },
-  tabOn: { borderBottomColor: colors.vermilion },
+  tabOn: { borderBottomColor: colors.accentStrong },
   tabText: { fontSize: 13, fontWeight: '600', color: colors.muted },
-  badge: { minWidth: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: colors.vermilion, alignItems: 'center' },
+  badge: { minWidth: 18, paddingHorizontal: 5, borderRadius: 9, backgroundColor: colors.accentStrong, alignItems: 'center' },
   badgeText: { color: '#fff', fontSize: 10, fontWeight: '700', lineHeight: 16 },
   content: { padding: 16, paddingBottom: 60 },
   search: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colors.ink, marginBottom: 6 },
@@ -345,8 +345,8 @@ const styles = StyleSheet.create({
   itemMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 },
   itemIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.paper2, alignItems: 'center', justifyContent: 'center' },
   itemIconText: { color: colors.muted, fontSize: 14 },
-  iconVisited: { backgroundColor: colors.vermilion },
-  iconWish: { backgroundColor: '#fff', borderWidth: 2, borderColor: colors.gold },
+  iconVisited: { backgroundColor: colors.accentStrong },
+  iconWish: { backgroundColor: '#fff', borderWidth: 2, borderColor: colors.accent },
   itemName: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 15, color: colors.ink },
   itemRomaji: { fontSize: 11, color: colors.ink, opacity: 0.5 },
   itemSub: { fontSize: 12, color: colors.muted },
@@ -360,11 +360,11 @@ const styles = StyleSheet.create({
   accountAvatar: { width: 32, height: 32, borderRadius: 16 },
   accountName: { fontSize: 14, fontWeight: '600', color: colors.ink },
   accountUsername: { fontSize: 11, color: colors.muted },
-  link: { color: colors.vermilion, textDecorationLine: 'underline' },
+  link: { color: colors.accentStrong, textDecorationLine: 'underline' },
   nameForm: { flexBasis: '100%', marginTop: 4 },
   nameLabel: { fontSize: 12, color: colors.ink, marginBottom: 6 },
   nameRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
-  accountStatus: { fontSize: 11, color: colors.green },
+  accountStatus: { fontSize: 11, color: colors.accentStrong },
   googleBtn: { borderWidth: 1, borderColor: colors.line, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
   googleText: { fontSize: 13, fontWeight: '600', color: colors.ink },
   routeBox: { borderWidth: 1, borderColor: colors.line, borderRadius: 12, backgroundColor: '#fff', padding: 12, marginBottom: 8 },
@@ -376,16 +376,16 @@ const styles = StyleSheet.create({
   modeText: { fontSize: 12, color: colors.muted },
   option: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   optionText: { fontSize: 13, color: colors.ink },
-  goBtn: { backgroundColor: colors.vermilion, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  goBtn: { backgroundColor: colors.accentStrong, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   goText: { color: '#fff', fontWeight: '700' },
-  error: { color: colors.vermilion, fontSize: 12, marginTop: 8 },
+  error: { color: colors.danger, fontSize: 12, marginTop: 8 },
   summary: { fontWeight: '700', fontSize: 14, color: colors.ink, marginBottom: 6 },
   step: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
-  stepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.vermilion, alignItems: 'center', justifyContent: 'center' },
+  stepNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
   stepNumText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   stepName: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 14, color: colors.ink },
   stepLeg: { fontSize: 11, color: colors.muted },
-  back: { color: colors.vermilion, fontSize: 13, textDecorationLine: 'underline', marginTop: 4, marginBottom: 6 },
+  back: { color: colors.accentStrong, fontSize: 13, textDecorationLine: 'underline', marginTop: 4, marginBottom: 6 },
   cityTitle: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 19, color: colors.ink },
   cityMeta: { fontSize: 12, color: colors.muted, marginTop: 2, marginBottom: 8 },
   routeActions: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },

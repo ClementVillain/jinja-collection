@@ -91,7 +91,7 @@ const ShrineMap = forwardRef(function ShrineMap({
         <Layer
           id="clusters" type="circle" filter={isCluster}
           paint={{
-            'circle-color': 'rgba(43,36,32,0.82)', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5,
+            'circle-color': 'rgba(29,30,24,0.84)', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5,
             'circle-radius': ['step', ['get', 'point_count'], 15, 50, 19, 500, 24],
           }}
         />
@@ -102,37 +102,37 @@ const ShrineMap = forwardRef(function ShrineMap({
         />
         <Layer
           id="shrine" type="circle" filter={['!', ['has', 'point_count']]}
-          paint={{ 'circle-color': '#ffffff', 'circle-radius': 6, 'circle-stroke-color': '#9b8f84', 'circle-stroke-width': 3 }}
+          paint={{ 'circle-color': '#ffffff', 'circle-radius': 6, 'circle-stroke-color': '#9aa59c', 'circle-stroke-width': 3 }}
         />
       </GeoJSONSource>
 
       <GeoJSONSource id="wished" ref={wishedSource} data={wished} {...OVERLAY_CLUSTER} onPress={pressIn(wishedSource)}>
         <Layer id="wished-clusters" type="circle" filter={isCluster}
-          paint={{ 'circle-color': '#ffffff', 'circle-radius': overlayRadius, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 3 }} />
+          paint={{ 'circle-color': colors.soft, 'circle-radius': overlayRadius, 'circle-stroke-color': colors.accent, 'circle-stroke-width': 3 }} />
         <Layer id="wished-count" type="symbol" filter={isCluster}
-          layout={{ 'text-field': CLUSTER_LABEL, 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': colors.goldText }} />
-        <Layer id="wished-dot" type="circle" filter={notCluster} paint={{ 'circle-color': '#ffffff', 'circle-radius': 10, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 3 }} />
-        <Layer id="wished-star" type="circle" filter={notCluster} paint={{ 'circle-color': colors.gold, 'circle-radius': 4 }} />
+          layout={{ 'text-field': CLUSTER_LABEL, 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': colors.ink }} />
+        <Layer id="wished-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.soft, 'circle-radius': 10, 'circle-stroke-color': colors.accent, 'circle-stroke-width': 3 }} />
+        <Layer id="wished-star" type="circle" filter={notCluster} paint={{ 'circle-color': colors.accentDark, 'circle-radius': 3.5 }} />
       </GeoJSONSource>
 
       <GeoJSONSource id="visited" ref={visitedSource} data={visited} {...OVERLAY_CLUSTER} onPress={pressIn(visitedSource)}>
         <Layer id="visited-clusters" type="circle" filter={isCluster}
-          paint={{ 'circle-color': colors.vermilion, 'circle-radius': overlayRadius, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 2.5 }} />
+          paint={{ 'circle-color': colors.accent, 'circle-radius': overlayRadius, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }} />
         <Layer id="visited-count" type="symbol" filter={isCluster}
           layout={{ 'text-field': CLUSTER_LABEL, 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': '#ffffff' }} />
-        <Layer id="visited-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.vermilion, 'circle-radius': 11, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 2.5 }} />
+        <Layer id="visited-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.accent, 'circle-radius': 11, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }} />
         <Layer id="visited-center" type="circle" filter={notCluster} paint={{ 'circle-color': '#ffffff', 'circle-radius': 3 }} />
       </GeoJSONSource>
 
       {routeLine && !nav ? (
         <GeoJSONSource id="route" data={routeLine}>
           <Layer id="route-line" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-            paint={{ 'line-color': colors.vermilion, 'line-width': 5, 'line-opacity': 0.85, ...(route.mode === 'foot' ? { 'line-dasharray': [0.2, 2] } : {}) }} />
+            paint={{ 'line-color': colors.accentStrong, 'line-width': 5, 'line-opacity': 0.85, ...(route.mode === 'foot' ? { 'line-dasharray': [0.2, 2] } : {}) }} />
         </GeoJSONSource>
       ) : null}
       {routeStops && !nav ? (
         <GeoJSONSource id="route-stops" data={routeStops}>
-          <Layer id="route-stop" type="circle" paint={{ 'circle-color': colors.vermilion, 'circle-radius': 11, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 }} />
+          <Layer id="route-stop" type="circle" paint={{ 'circle-color': colors.accentStrong, 'circle-radius': 11, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 }} />
           <Layer id="route-stop-label" type="symbol" layout={{ 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': 11, 'text-allow-overlap': true }} paint={{ 'text-color': '#ffffff' }} />
         </GeoJSONSource>
       ) : null}
@@ -140,12 +140,12 @@ const ShrineMap = forwardRef(function ShrineMap({
       {navLine ? (
         <GeoJSONSource id="nav-line" data={navLine}>
           <Layer id="nav-casing" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }} paint={{ 'line-color': '#ffffff', 'line-width': 10, 'line-opacity': 0.9 }} />
-          <Layer id="nav-route" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }} paint={{ 'line-color': colors.vermilion, 'line-width': 6 }} />
+          <Layer id="nav-route" type="line" layout={{ 'line-cap': 'round', 'line-join': 'round' }} paint={{ 'line-color': colors.accentStrong, 'line-width': 6 }} />
         </GeoJSONSource>
       ) : null}
       {navStops ? (
         <GeoJSONSource id="nav-stops" data={navStops}>
-          <Layer id="nav-stop" type="circle" paint={{ 'circle-color': colors.vermilion, 'circle-radius': 12, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 }} />
+          <Layer id="nav-stop" type="circle" paint={{ 'circle-color': colors.accentStrong, 'circle-radius': 12, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 }} />
           <Layer id="nav-stop-label" type="symbol" layout={{ 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': 11, 'text-allow-overlap': true }} paint={{ 'text-color': '#ffffff' }} />
         </GeoJSONSource>
       ) : null}

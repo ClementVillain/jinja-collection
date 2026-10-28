@@ -3,7 +3,9 @@
 // Connecté : grand avatar, nom, « Membre depuis… », statistiques, nom public et amis,
 // sanctuaires découverts en premier.
 import { useMemo, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { SvgXml } from 'react-native-svg';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { byId, prefectures, useCollection } from '../state/CollectionContext';
@@ -12,12 +14,15 @@ import { colors, fonts } from '../theme';
 
 const PERSON = (color) => `<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4" fill="${color}"/><path d="M4 21c.6-4.4 3.9-7 8-7s7.4 2.6 8 7z" fill="${color}"/></svg>`;
 
-// Avatar rond : photo de profil Google, sinon silhouette (utilisé aussi dans l'en-tête du volet).
+// Avatar rond : photo choisie dans le profil, sinon photo Google, sinon silhouette
+// (utilisé aussi dans l'en-tête du volet).
 export function Avatar({ user, size = 40 }) {
-  if (user?.picture) return <Image source={{ uri: user.picture }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.paper2 }} />;
+  const custom = useCollection()?.profile?.avatar;
+  const picture = user ? custom || user.picture : null;
+  if (picture) return <Image source={{ uri: picture }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.paper2 }} />;
   const initial = user ? (user.givenName || user.name || '?').trim().charAt(0).toUpperCase() : '';
   return (
-    <View style={[styles.avatarEmpty, { width: size, height: size, borderRadius: size / 2 }, user && { backgroundColor: colors.vermilion }]}>
+    <View style={[styles.avatarEmpty, { width: size, height: size, borderRadius: size / 2 }, user && { backgroundColor: colors.accentStrong }]}>
       {initial ? <Text style={[styles.initial, { fontSize: size * 0.42 }]}>{initial}</Text>
         : <SvgXml xml={PERSON('#ffffff')} width={size * 0.62} height={size * 0.62} />}
     </View>
@@ -51,9 +56,9 @@ const nameStyles = StyleSheet.create({
   nameLabel: { fontSize: 12, color: colors.ink, marginBottom: 6 },
   nameRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   search: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: '#fff', paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, color: colors.ink },
-  goBtn: { backgroundColor: colors.vermilion, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
+  goBtn: { backgroundColor: colors.accentStrong, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
   goText: { color: '#fff', fontWeight: '700' },
-  error: { color: colors.vermilion, fontSize: 12, marginTop: 8 },
+  error: { color: colors.danger, fontSize: 12, marginTop: 8 },
 });
 
 const monthYear = (iso) => new Date(iso).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -95,9 +100,53 @@ function SignedOut({ onBack }) {
   );
 }
 
+// Recadre au centre au format voulu, réduit, et réencode en JPEG (métadonnées et GPS retirés).
+async function cropToJpeg(asset, [w, h]) {
+  const ratio = w / h;
+  let cw = asset.width, ch = asset.width / ratio;
+  if (ch > asset.height) { ch = asset.height; cw = ch * ratio; }
+  const ctx = ImageManipulator.manipulate(asset.uri);
+  ctx.crop({ originX: (asset.width - cw) / 2, originY: (asset.height - ch) / 2, width: cw, height: ch });
+  if (cw > w) ctx.resize({ width: w, height: h });
+  const image = await ctx.renderAsync();
+  return (await image.saveAsync({ compress: 0.85, format: SaveFormat.JPEG })).uri;
+}
+const IMAGE_SIZE = { avatar: [512, 512], banner: [1500, 500] };
+
 function SignedIn({ onSelect }) {
   const c = useCollection();
   const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(null); // 'avatar' | 'banner' pendant un envoi
+
+  const save = async (kind, asset) => {
+    setBusy(kind);
+    try { await c.setProfileImage(kind, asset ? await cropToJpeg(asset, IMAGE_SIZE[kind]) : null); }
+    catch (err) { Alert.alert("L'image n'a pas pu être enregistrée", err.message); }
+    finally { setBusy(null); }
+  };
+  const pick = async (kind, source) => {
+    const options = { mediaTypes: ['images'], quality: 1, exif: false, ...(kind === 'avatar' ? { allowsEditing: true, aspect: [1, 1] } : {}) };
+    if (source === 'camera' && !(await ImagePicker.requestCameraPermissionsAsync()).granted) {
+      Alert.alert('Appareil photo', "Autorise l'appareil photo dans Réglages › Jinja Collection.");
+      return;
+    }
+    const res = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
+    if (!res.canceled && res.assets?.[0]) save(kind, res.assets[0]);
+  };
+  const edit = (kind) => {
+    const has = c.profile?.[kind];
+    const options = ['Choisir dans la photothèque', 'Prendre une photo'];
+    if (has) options.push(kind === 'avatar' ? 'Revenir à la photo Google' : 'Revenir à la bannière par défaut');
+    options.push('Annuler');
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: has ? options.length - 2 : undefined, title: kind === 'avatar' ? 'Photo de profil' : 'Bannière' },
+      (i) => {
+        if (i === 0) pick(kind, 'library');
+        else if (i === 1) pick(kind, 'camera');
+        else if (has && i === 2) save(kind, null);
+      },
+    );
+  };
   const visited = Object.keys(c.visits).filter((id) => byId.has(id));
   const wished = Object.keys(c.wishlist).filter((id) => byId.has(id) && !c.visits[id]);
   // Sanctuaires dont l'utilisateur est le premier visiteur vérifié (« Découvert par »).
@@ -109,8 +158,17 @@ function SignedIn({ onSelect }) {
 
   return (
     <View>
-      <View style={styles.center}>
-        <Avatar user={c.user} size={110} />
+      <Pressable onPress={() => edit('banner')} disabled={!!busy}>
+        <ImageBackground source={c.profile?.banner ? { uri: c.profile.banner } : null} style={styles.banner} imageStyle={styles.bannerImage}>
+          {c.profile?.banner ? null : <View style={styles.bannerDefault}><View style={styles.bannerSoft} /></View>}
+          <View style={styles.bannerEdit}>{busy === 'banner' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.bannerEditText}>✎ Bannière</Text>}</View>
+        </ImageBackground>
+      </Pressable>
+      <View style={[styles.center, styles.overBanner]}>
+        <Pressable onPress={() => edit('avatar')} disabled={!!busy} style={styles.avatarRing}>
+          <Avatar user={c.user} size={110} />
+          <View style={styles.avatarPen}>{busy === 'avatar' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.penText}>✎</Text>}</View>
+        </Pressable>
         <Text style={styles.name}>{name}</Text>
         {c.username && c.user.name && c.user.name !== 'Compte Apple' ? <Text style={styles.realName}>{c.user.name}</Text> : null}
         <Text style={styles.since}>{c.profile?.since ? `Membre depuis ${monthYear(c.profile.since)}` : ' '}</Text>
@@ -145,7 +203,7 @@ function SignedIn({ onSelect }) {
       ) : null}
 
       <View style={styles.section}>
-        <Text style={[styles.hint, c.syncStatus.error && { color: colors.vermilion }]}>{c.syncStatus.text}</Text>
+        <Text style={[styles.hint, c.syncStatus.error && { color: colors.danger }]}>{c.syncStatus.text}</Text>
         <Pressable style={[styles.bigBtn, styles.logout]} onPress={c.signOut}><Text style={styles.logoutText}>Se déconnecter</Text></Pressable>
         <Text style={styles.credit}>Préfectures : 地球地図日本 (Global Map Japan, GSI)</Text>
       </View>
@@ -164,11 +222,21 @@ export default function AccountScreen({ onBack, onSelect }) {
 }
 
 const styles = StyleSheet.create({
+  banner: { height: 130, marginHorizontal: -16, justifyContent: 'flex-end', overflow: 'hidden' },
+  bannerImage: { resizeMode: 'cover' },
+  bannerDefault: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.accent },
+  bannerSoft: { position: 'absolute', right: -60, top: -40, width: 260, height: 260, borderRadius: 130, backgroundColor: colors.soft, opacity: 0.6 },
+  bannerEdit: { position: 'absolute', right: 10, bottom: 10, backgroundColor: 'rgba(29,30,24,0.6)', borderRadius: 14, paddingHorizontal: 10, paddingVertical: 5 },
+  bannerEditText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  overBanner: { marginTop: -62, paddingTop: 0 },
+  avatarRing: { borderWidth: 4, borderColor: '#fff', borderRadius: 64, backgroundColor: '#fff' },
+  avatarPen: { position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(29,30,24,0.75)', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  penText: { color: '#fff', fontSize: 14 },
   wrap: { paddingHorizontal: 16, paddingBottom: 40 },
   backRow: { paddingVertical: 4, marginBottom: 6 },
   back: { color: colors.muted, fontSize: 14 },
   center: { alignItems: 'center', gap: 10, paddingTop: 8 },
-  avatarEmpty: { backgroundColor: '#8a8380', alignItems: 'center', justifyContent: 'center' },
+  avatarEmpty: { backgroundColor: '#9aa59c', alignItems: 'center', justifyContent: 'center' },
   initial: { color: '#fff', fontWeight: '700' },
   pitch: { textAlign: 'center', color: colors.muted, fontSize: 14, lineHeight: 20, marginVertical: 18, paddingHorizontal: 8 },
   bigBtn: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 12, paddingVertical: 15 },
@@ -178,24 +246,24 @@ const styles = StyleSheet.create({
   appleBtn: { backgroundColor: '#000' },
   appleLogo: { fontSize: 19, color: '#fff', marginTop: -3 },
   appleText: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  error: { color: colors.vermilion, fontSize: 13, textAlign: 'center' },
+  error: { color: colors.danger, fontSize: 13, textAlign: 'center' },
   name: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 24, color: colors.ink, marginTop: 6 },
   realName: { color: colors.muted, fontSize: 13, marginTop: -6 },
   since: { color: colors.muted, fontSize: 13 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 22 },
   stat: { flexBasis: '31%', flexGrow: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center' },
-  statValue: { fontSize: 22, fontWeight: '800', color: colors.vermilion },
+  statValue: { fontSize: 22, fontWeight: '800', color: colors.accentStrong },
   statLabel: { fontSize: 12, color: colors.ink, marginTop: 2, textAlign: 'center' },
   statSub: { fontSize: 10, color: colors.muted, marginTop: 2, textAlign: 'center' },
   section: { marginTop: 22, gap: 6 },
   sectionTitle: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 16, color: colors.ink },
   text: { fontSize: 14, color: colors.ink },
-  link: { color: colors.vermilion, textDecorationLine: 'underline' },
+  link: { color: colors.accentStrong, textDecorationLine: 'underline' },
   hint: { fontSize: 12, color: colors.muted },
   discovery: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.paper2 },
   discoveryName: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 15, color: colors.ink },
   discoverySub: { fontSize: 12, color: colors.muted },
   logout: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, marginTop: 6 },
-  logoutText: { fontSize: 15, fontWeight: '600', color: colors.vermilion },
+  logoutText: { fontSize: 15, fontWeight: '600', color: colors.accentStrong },
   credit: { fontSize: 10, color: colors.muted, textAlign: 'center', marginTop: 10 },
 });

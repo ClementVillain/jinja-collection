@@ -780,7 +780,7 @@
 
   function drawRoute(result) {
     routeLayer.clearLayers();
-    L.geoJSON(result.geometry, { style: { color: '#d63b23', weight: 5, opacity: 0.8, dashArray: result.mode === 'foot' ? '2 9' : null, lineCap: 'round' } }).addTo(routeLayer);
+    L.geoJSON(result.geometry, { style: { color: '#4f6e55', weight: 5, opacity: 0.8, dashArray: result.mode === 'foot' ? '2 9' : null, lineCap: 'round' } }).addTo(routeLayer);
     let n = 0;
     for (const p of result.ordered) {
       const icon = L.divIcon({ className: 'route-pin', html: `<span>${p.me ? '◎' : ++n}</span>`, iconSize: [22, 22], iconAnchor: [11, 11] });
@@ -1377,7 +1377,7 @@
     try {
       const info = await syncApiAt('/api/profile', 'GET');
       username = info.username;
-      profileInfo = { since: info.since || null, friends: info.friends ?? 0 };
+      profileInfo = { since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null };
       renderAccount();
       loadFriends();
     } catch { /* réessayé à la prochaine synchro */ }
@@ -1402,6 +1402,8 @@
   let prefectureNames = new Map(); // code JIS → nom japonais
 
   function avatarHtml(size) {
+    // Photo choisie dans le profil, sinon celle du compte Google.
+    if (googleUser && profileInfo?.avatar) return `<img class="avatar" style="width:${size}px;height:${size}px" src="${esc(profileInfo.avatar)}" alt="">`;
     if (googleUser?.picture) return `<img class="avatar" style="width:${size}px;height:${size}px" src="${esc(googleUser.picture)}" alt="" referrerpolicy="no-referrer">`;
     const initial = googleUser ? (googleUser.name || '?').trim().charAt(0).toUpperCase() : '';
     return `<span class="avatar avatar-empty${initial ? ' avatar-initial' : ''}" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px">${initial ? esc(initial) : PERSON}</span>`;
@@ -1437,9 +1439,14 @@
       const since = profileInfo?.since ? new Date(profileInfo.since).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '';
       const prefSample = [...prefs].slice(0, 3).map((p) => prefectureNames.get(p)).filter(Boolean).join(' · ') + (prefs.size > 3 ? '…' : '');
       const stat = (value, label, sub = '') => `<div class="stat"><strong>${esc(String(value))}</strong><span>${label}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`;
+      const banner = profileInfo?.banner ? ` style="background-image:url('${esc(profileInfo.banner)}')"` : '';
       el.innerHTML = `${back}
-        <div class="account-hero">
-          ${avatarHtml(110)}
+        <div class="account-banner"${banner}>
+          <button type="button" class="banner-edit" data-image-pick="banner" title="Changer la bannière">✎ Bannière</button>
+        </div>
+        <div class="account-hero with-banner">
+          <button type="button" class="avatar-edit" data-image-pick="avatar" title="Changer la photo de profil">${avatarHtml(110)}<span class="avatar-pen">✎</span></button>
+          <p class="image-status" data-image-status hidden></p>
           <h2>${esc(username ? `@${username}` : googleUser.name)}</h2>
           ${username ? `<p class="account-realname">${esc(googleUser.name)}</p>` : ''}
           <p class="account-since">${since ? `Membre depuis ${esc(since)}` : '&nbsp;'}</p>
@@ -1509,6 +1516,57 @@
       el.querySelector('[data-apple]').addEventListener('click', () => { el.querySelector('[data-apple-note]').hidden = false; });
     }
     el.querySelectorAll('[data-account-close]').forEach((b) => b.addEventListener('click', () => openAccount(false)));
+    el.querySelectorAll('[data-image-pick]').forEach((b) => b.addEventListener('click', () => pickProfileImage(b.dataset.imagePick)));
+  }
+
+  // ---------- Photo de profil et bannière ----------
+  // L'image est recadrée et réduite dans le navigateur (carré 512 px / bannière 1500×500), réencodée
+  // en JPEG (sans métadonnées), puis envoyée à /api/profile-image.
+  const IMAGE_SIZE = { avatar: [512, 512], banner: [1500, 500] };
+
+  function pickProfileImage(kind) {
+    const has = kind === 'avatar' ? profileInfo?.avatar : profileInfo?.banner;
+    if (has && confirm(kind === 'avatar' ? 'Revenir à la photo de ton compte Google ?\n(Annuler pour choisir une nouvelle photo)' : 'Revenir à la bannière par défaut ?\n(Annuler pour choisir une nouvelle image)')) {
+      saveProfileImage(kind, null);
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.addEventListener('change', () => { if (input.files[0]) saveProfileImage(kind, input.files[0]); });
+    input.click();
+  }
+
+  async function cropToJpeg(file, [w, h]) {
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    // Recadrage centré au bon format, puis réduction.
+    const ratio = w / h;
+    let sw = bitmap.width, sh = bitmap.width / ratio;
+    if (sh > bitmap.height) { sh = bitmap.height; sw = sh * ratio; }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.min(w, Math.round(sw));
+    canvas.height = Math.round(canvas.width / ratio);
+    canvas.getContext('2d').drawImage(bitmap, (bitmap.width - sw) / 2, (bitmap.height - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+  }
+
+  async function saveProfileImage(kind, file) {
+    const status = $('#account [data-image-status]');
+    const show = (text, error = false) => { if (status) { status.hidden = !text; status.textContent = text; status.classList.toggle('error', error); } };
+    show(file ? 'Envoi de l’image…' : 'Un instant…');
+    try {
+      const res = await fetch(`/api/profile-image?kind=${kind}`, {
+        method: file ? 'POST' : 'DELETE',
+        headers: { Authorization: `Bearer ${googleToken}`, ...(file ? { 'Content-Type': 'application/octet-stream' } : {}) },
+        body: file ? await cropToJpeg(file, IMAGE_SIZE[kind]) : undefined,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `erreur ${res.status}`);
+      profileInfo = { ...(profileInfo || {}), [kind]: data.url };
+      renderAccount();
+    } catch (err) {
+      show(`L'image n'a pas pu être enregistrée : ${err.message}`, true);
+    }
   }
 
   try { setToken(localStorage.getItem(TOKEN_KEY)); } catch { setToken(null); }

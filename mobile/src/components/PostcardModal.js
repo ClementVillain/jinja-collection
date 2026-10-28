@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   note: { minHeight: 60, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: '#fff', padding: 10, fontSize: 15, color: colors.ink },
   actions: { flexDirection: 'row', gap: 8, justifyContent: 'flex-end' },
   btn: { borderRadius: 10, paddingVertical: 11, paddingHorizontal: 16 },
-  primary: { backgroundColor: colors.vermilion },
+  primary: { backgroundColor: colors.accentStrong },
   primaryText: { color: '#fff', fontWeight: '700' },
   ghost: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line },
   ghostText: { color: colors.ink, fontWeight: '600' },

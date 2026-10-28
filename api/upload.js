@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const { put } = require('@vercel/blob');
 const { PREFIX } = require('../lib/community');
 const { verifyGoogleUser } = require('../lib/auth');
+const { profileImages, publicId } = require('../lib/profiles');
 
 const MAX_BYTES = 3 * 1024 * 1024;
 
@@ -37,9 +38,11 @@ module.exports = async (req, res) => {
       return res.status(415).json({ error: 'Seules les images JPEG sont acceptées' });
     }
     const base = `${PREFIX}${shrine}/${Date.now()}-${crypto.randomBytes(8).toString('hex')}`;
+    // Photo de profil choisie dans l'app / le site, sinon celle du compte Google.
+    const { avatar } = await profileImages(publicId(user.sub)).catch(() => ({ avatar: null }));
     const by = {
       name: String(user.givenName || user.name || 'Visiteur').slice(0, 40),
-      picture: /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com\//.test(user.picture || '') ? user.picture : '',
+      picture: avatar || (/^https:\/\/[a-z0-9.-]+\.googleusercontent\.com\//.test(user.picture || '') ? user.picture : ''),
     };
     // Les métadonnées d'abord : la photo n'apparaît dans la liste qu'une fois son auteur connu.
     const meta = await put(`${base}.json`, JSON.stringify({ ...by, at: new Date().toISOString() }), {

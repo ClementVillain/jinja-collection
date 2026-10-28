@@ -136,7 +136,7 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
       {latin ? <Text style={styles.latin}>{latin}</Text> : null}
       {c.discoveries[shrine.id] ? (
         <View style={styles.discoverer}>
-          <SvgXml width={13} height={13} xml={`<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="${colors.vermilion}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />
+          <SvgXml width={13} height={13} xml={`<svg viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" fill="none" stroke="${colors.accentStrong}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`} />
           <Text style={styles.discovererText}>Découvert par <Text style={{ fontWeight: '700', color: colors.ink }}>{c.discoveries[shrine.id]}</Text></Text>
         </View>
       ) : null}
@@ -170,7 +170,7 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
               <Text style={styles.primaryText}>{checking ? 'Vérification de ta position…' : "J'y suis allé ⛩"}</Text>
             </Pressable>
             <Pressable style={[styles.btn, styles.ghost, wished && styles.wishOn]} onPress={() => (c.user ? c.toggleWish(shrine.id) : onLoginHint())}>
-              <Text style={[styles.ghostText, wished && { color: colors.goldText }]}>{wished ? '★ Retirer' : '☆ À visiter'}</Text>
+              <Text style={[styles.ghostText, wished && { color: colors.accentStrong }]}>{wished ? '★ Retirer' : '☆ À visiter'}</Text>
             </Pressable>
           </>
         )}
@@ -180,7 +180,7 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
           {c.googleSignInAvailable ? 'Connecte-toi avec Google pour collectionner ce sanctuaire.' : "La connexion Google n'est pas disponible dans cette version de l'app : impossible de collectionner."}
         </Text>
       ) : null}
-      {status ? <Text style={[styles.upload, status.ok && { color: colors.green }, status.error && { color: colors.vermilion }]}>{status.text}</Text> : null}
+      {status ? <Text style={[styles.upload, status.ok && { color: colors.accentStrong }, status.error && { color: colors.danger }]}>{status.text}</Text> : null}
 
       <Pressable style={[styles.btn, styles.go]} onPress={() => onNavigate(shrine)}>
         <Text style={styles.goText}>➤ Y aller</Text>
@@ -212,15 +212,15 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 24, color: colors.ink },
   latin: { fontSize: 13, color: colors.ink, opacity: 0.55, marginTop: 2, letterSpacing: 0.3 },
   status: { marginVertical: 10, fontSize: 14, color: colors.muted },
-  statusDone: { color: colors.vermilion, fontWeight: '700' },
-  statusWish: { color: colors.goldText, fontWeight: '700' },
+  statusDone: { color: colors.accentStrong, fontWeight: '700' },
+  statusWish: { color: colors.accentStrong, fontWeight: '700' },
   actions: { flexDirection: 'row', gap: 8 },
   btn: { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
-  primary: { backgroundColor: colors.vermilion },
+  primary: { backgroundColor: colors.accentStrong },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   ghost: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line },
   ghostText: { color: colors.ink, fontWeight: '600', fontSize: 15 },
-  wishOn: { borderColor: colors.gold },
+  wishOn: { borderColor: colors.accent },
   discoverer: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   discovererText: { fontSize: 12, color: colors.muted },
   unverified: { fontSize: 12, color: '#9a6a00', marginTop: -6, marginBottom: 10 },

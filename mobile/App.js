@@ -199,5 +199,5 @@ const styles = StyleSheet.create({
   locate: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 1 } },
   locateText: { fontSize: 22, color: colors.ink },
   sheetBg: { backgroundColor: colors.paper, borderRadius: 18 },
-  handle: { backgroundColor: '#d8ccbb', width: 42 },
+  handle: { backgroundColor: colors.line, width: 42 },
 });

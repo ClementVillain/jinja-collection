@@ -536,7 +536,7 @@
     const latlngs = remainingCoords(nav.route.coords, nav.route.cum, nav.along).map(([lon, lat]) => [lat, lon]);
     if (!nav.routeLine) {
       nav.routeCasing = L.polyline(latlngs, { color: '#fff', weight: 9, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(nav.layer);
-      nav.routeLine = L.polyline(latlngs, { color: '#d63b23', weight: 6, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(nav.layer);
+      nav.routeLine = L.polyline(latlngs, { color: '#4f6e55', weight: 6, opacity: 0.9, lineCap: 'round', interactive: false }).addTo(nav.layer);
     } else {
       nav.routeCasing.setLatLngs(latlngs);
       nav.routeLine.setLatLngs(latlngs);

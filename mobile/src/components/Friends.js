@@ -131,15 +131,15 @@ export default function Friends({ onSelect, cardWidth, onLogin }) {
 
 const styles = StyleSheet.create({
   hint: { color: colors.muted, fontSize: 13, lineHeight: 19, marginVertical: 8 },
-  error: { color: colors.vermilion, fontSize: 13, marginBottom: 6 },
+  error: { color: colors.danger, fontSize: 13, marginBottom: 6 },
   title: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 16, color: colors.ink, marginTop: 14, marginBottom: 6 },
   addRow: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   input: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 10, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, color: colors.ink },
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.paper2 },
   name: { fontSize: 15, fontWeight: '600', color: colors.ink },
   sub: { fontSize: 12, color: colors.muted },
-  link: { color: colors.vermilion, textDecorationLine: 'underline' },
-  primaryBtn: { backgroundColor: colors.vermilion, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+  link: { color: colors.accentStrong, textDecorationLine: 'underline' },
+  primaryBtn: { backgroundColor: colors.accentStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
   primaryText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   smallBtn: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#fff' },
   smallText: { fontSize: 12, color: colors.ink },
