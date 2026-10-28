@@ -3,6 +3,7 @@
 // Usage : node scripts/fetch-shrines.mjs
 import { writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { addPrefectures } from './prefectures.mjs';
 
 const { createRomanizer } = createRequire(import.meta.url)('./romaji.cjs');
 
@@ -85,10 +86,11 @@ for (const el of elements) {
   ]);
 }
 
-await writeFile(new URL('../data/shrines.json', import.meta.url), JSON.stringify({
+// Préfecture de chaque sanctuaire (8e champ), d'après les contours du GSI (voir prefectures.mjs).
+await writeFile(new URL('../data/shrines.json', import.meta.url), JSON.stringify(await addPrefectures({
   source: 'OpenStreetMap contributors (ODbL)',
   fetchedAt: new Date().toISOString(),
   fields: ['id', 'name', 'nameLatin', 'lat', 'lon', 'photo', 'romaji'],
   shrines,
-}));
+})));
 console.log(`${shrines.length} sanctuaires nommés écrits (sur ${elements.length} trouvés).`);

@@ -6,6 +6,9 @@ const extra = Constants.expoConfig?.extra || {};
 export const API_BASE = extra.apiBase || 'https://jinja-collection.vercel.app';
 export const GOOGLE_WEB_CLIENT_ID = extra.googleWebClientId || '';
 export const GOOGLE_IOS_CLIENT_ID = extra.googleIosClientId || '';
+// « Se connecter avec Apple » : actif seulement dans une app construite avec APPLE_SIGN_IN=1
+// (capacité réservée au compte développeur Apple payant, voir app.config.js).
+export const APPLE_SIGN_IN = !!extra.appleSignIn;
 
 export async function apiJson(path, { token, method = 'GET', body, headers = {} } = {}) {
   const res = await fetch(`${API_BASE}${path}`, {

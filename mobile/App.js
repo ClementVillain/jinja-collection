@@ -32,6 +32,12 @@ function Main() {
   const [showUser, setShowUser] = useState(false);
   const [simulate, setSimulate] = useState(false);
   const [search, setSearch] = useState({ query: '', city: null });
+  // Écran du compte (avatar en haut à droite du volet), affiché en plein écran.
+  const [account, setAccountState] = useState(false);
+  const setAccount = (open) => {
+    setAccountState(open);
+    if (open) { Keyboard.dismiss(); sheet.current?.snapToIndex(SNAP.full); }
+  };
   const { height } = useWindowDimensions();
   const sheetBefore = useRef(SNAP.half);
   const sheetIndex = useRef(SNAP.half);
@@ -133,7 +139,7 @@ function Main() {
               onClose={() => setSelectedId(null)}
               onNavigate={navigateTo}
               onOpenCard={(id, isNew) => setCard({ id, isNew })}
-              onLoginHint={() => { setSelectedId(null); sheet.current?.snapToIndex(SNAP.half); }}
+              onLoginHint={() => { setSelectedId(null); setAccount(true); }}
             />
           </BottomSheetScrollView>
         ) : (
@@ -153,6 +159,8 @@ function Main() {
             setSearch={setSearch}
             simulate={simulate}
             setSimulate={setSimulate}
+            account={account}
+            setAccount={setAccount}
           />
         )}
       </BottomSheet>

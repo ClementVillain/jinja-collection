@@ -1375,7 +1375,9 @@
   async function loadProfile() {
     if (!googleToken || username !== undefined) return;
     try {
-      ({ username } = await syncApiAt('/api/profile', 'GET'));
+      const info = await syncApiAt('/api/profile', 'GET');
+      username = info.username;
+      profileInfo = { since: info.since || null, friends: info.friends ?? 0 };
       renderAccount();
       loadFriends();
     } catch { /* réessayé à la prochaine synchro */ }
@@ -1393,35 +1395,85 @@
   }
 
   // Ouvre le menu et met en évidence l'encart de connexion.
-  function showAccount() {
-    if (isMobile()) setCollapsed(false); else setPanelHidden(false);
-    const el = $('#account');
-    el.classList.remove('pulse');
-    void el.offsetWidth;
-    el.classList.add('pulse');
+  // ---------- Écran du compte ----------
+  // L'avatar en haut à droite du panneau ouvre l'écran du compte, qui remplace les onglets.
+  const PERSON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="4" fill="#fff"/><path d="M4 21c.6-4.4 3.9-7 8-7s7.4 2.6 8 7z" fill="#fff"/></svg>';
+  let profileInfo = null; // { since, friends } du compte connecté
+  let prefectureNames = new Map(); // code JIS → nom japonais
+
+  function avatarHtml(size) {
+    if (googleUser?.picture) return `<img class="avatar" style="width:${size}px;height:${size}px" src="${esc(googleUser.picture)}" alt="" referrerpolicy="no-referrer">`;
+    const initial = googleUser ? (googleUser.name || '?').trim().charAt(0).toUpperCase() : '';
+    return `<span class="avatar avatar-empty${initial ? ' avatar-initial' : ''}" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px">${initial ? esc(initial) : PERSON}</span>`;
+  }
+
+  function openAccount(open = true) {
+    document.body.classList.toggle('account-open', open);
+    $('#account').hidden = !open;
+    if (open) {
+      if (isMobile()) setSheet('full'); else setPanelHidden(false);
+      renderAccount();
+    }
+  }
+  const showAccount = () => { map.closePopup(); openAccount(true); };
+  $('#account-btn').addEventListener('click', (e) => { e.stopPropagation(); openAccount(!document.body.classList.contains('account-open')); });
+
+  function accountStats() {
+    const visited = Object.keys(visits).filter((id) => byId.has(id));
+    const wished = Object.keys(wishlist).filter((id) => byId.has(id) && !visits[id]);
+    const mine = username ? Object.entries(discoveries).filter(([id, name]) => name === username && byId.has(id)).map(([id]) => byId.get(id)) : [];
+    const prefs = new Set(visited.map((id) => byId.get(id).prefecture).filter(Boolean));
+    return { visited, wished, mine, prefs };
   }
 
   function renderAccount() {
+    $('#account-btn').innerHTML = avatarHtml(36);
+    $('#account-btn').hidden = !googleClientId;
     const el = $('#account');
-    if (!googleClientId) { el.hidden = true; return; }
-    el.hidden = false;
+    if (el.hidden) return;
+    const back = '<button type="button" class="account-back" data-account-close>‹ Retour</button>';
     if (googleUser) {
-      el.innerHTML = `
-        ${googleUser.picture ? `<img class="account-avatar" src="${esc(googleUser.picture)}" alt="" referrerpolicy="no-referrer">` : ''}
-        <div class="account-text">
-          <span class="account-name">${esc(googleUser.name)}</span>
-          ${username ? `<span class="account-username">@${esc(username)} · <button type="button" class="link-btn" data-edit-name>modifier</button></span>` : ''}
-          <span id="sync-status" class="account-status ${syncStatus.error ? 'error' : ''}">${esc(syncStatus.text)}</span>
+      const { visited, wished, mine, prefs } = accountStats();
+      const since = profileInfo?.since ? new Date(profileInfo.since).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '';
+      const prefSample = [...prefs].slice(0, 3).map((p) => prefectureNames.get(p)).filter(Boolean).join(' · ') + (prefs.size > 3 ? '…' : '');
+      const stat = (value, label, sub = '') => `<div class="stat"><strong>${esc(String(value))}</strong><span>${label}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`;
+      el.innerHTML = `${back}
+        <div class="account-hero">
+          ${avatarHtml(110)}
+          <h2>${esc(username ? `@${username}` : googleUser.name)}</h2>
+          ${username ? `<p class="account-realname">${esc(googleUser.name)}</p>` : ''}
+          <p class="account-since">${since ? `Membre depuis ${esc(since)}` : '&nbsp;'}</p>
         </div>
-        <button id="logout-btn" class="ghost small" type="button">Déconnexion</button>
-        ${username === null || editingName ? `
+        <div class="stats">
+          ${stat(visited.length, 'Sanctuaires visités')}
+          ${stat(`${prefs.size}/47`, 'Préfectures', prefSample)}
+          ${stat(mine.length, 'Découvertes', 'premier visiteur')}
+          ${stat(wished.length, 'À visiter')}
+          ${stat(profileInfo ? profileInfo.friends : '–', 'Amis')}
+        </div>
+        <div class="account-section">
+          <h3>Nom public</h3>
+          ${username && !editingName ? `<p>@${esc(username)} · <button type="button" class="link-btn" data-edit-name>modifier</button></p>` : ''}
+          ${username === null || username === undefined || editingName ? `
           <form class="username-form">
             <label>${username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <small>(visible par les autres : amis, « Découvert par »)</small>
               <span class="username-row"><input name="username" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]{3,20}" placeholder="ex : kitsune_77" value="${esc(username || '')}" autocomplete="off">
               <button class="primary small" type="submit">OK</button></span>
             </label>
             <span class="username-error" data-name-error></span>
-          </form>` : ''}`;
+          </form>` : ''}
+          <p class="hint">Visible par les autres : amis et « Découvert par ».</p>
+        </div>
+        ${mine.length ? `<div class="account-section"><h3>⛩ Visités en premier par toi</h3><ul class="list">${mine.map((s) => `
+          <li class="item"><button class="item-main" data-action="locate" data-id="${s.id}" data-account-close>
+            <span class="item-text"><span class="item-name">${esc(s.name)}</span>
+            <span class="item-romaji">${esc([latinName(s), prefectureNames.get(s.prefecture)].filter(Boolean).join(' · '))}</span></span>
+          </button></li>`).join('')}</ul></div>` : ''}
+        <div class="account-section">
+          <p id="sync-status" class="account-status ${syncStatus.error ? 'error' : ''}">${esc(syncStatus.text)}</p>
+          <button id="logout-btn" class="big-btn ghost" type="button">Se déconnecter</button>
+          <p class="credit">Préfectures : 地球地図日本 (Global Map Japan, GSI)</p>
+        </div>`;
       el.querySelector('[data-edit-name]')?.addEventListener('click', () => { editingName = true; renderAccount(); });
       el.querySelector('.username-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1442,11 +1494,21 @@
         setToken(null);
       });
     } else {
-      el.innerHTML = `<p class="account-pitch">Connecte-toi pour collectionner les sanctuaires et retrouver tes cartes partout.</p><div id="google-btn"></div>`;
+      el.innerHTML = `${back}
+        <div class="account-hero">
+          ${avatarHtml(110)}
+          <p class="account-pitch">Connecte-toi pour collectionner les sanctuaires, garder tes cartes postales et les retrouver sur le site et dans l'app.</p>
+        </div>
+        <div id="google-btn" class="google-btn"></div>
+        <button type="button" class="big-btn apple-btn" data-apple> Se connecter avec Apple</button>
+        <p class="hint" data-apple-note hidden>La connexion avec Apple sera activée avec la publication de l'app sur l'App Store (elle demande le compte développeur Apple payant). En attendant, connecte-toi avec Google.</p>
+        <button type="button" class="account-back center" data-account-close>Continuer sans compte</button>`;
       if (window.google?.accounts?.id) {
-        google.accounts.id.renderButton($('#google-btn'), { theme: 'outline', size: 'medium', shape: 'pill', text: 'signin_with', locale: 'fr' });
+        google.accounts.id.renderButton($('#google-btn'), { theme: 'outline', size: 'large', shape: 'rectangular', text: 'signin_with', locale: 'fr', width: Math.min(360, $('#account').clientWidth - 32) });
       }
+      el.querySelector('[data-apple]').addEventListener('click', () => { el.querySelector('[data-apple-note]').hidden = false; });
     }
+    el.querySelectorAll('[data-account-close]').forEach((b) => b.addEventListener('click', () => openAccount(false)));
   }
 
   try { setToken(localStorage.getItem(TOKEN_KEY)); } catch { setToken(null); }
@@ -1551,12 +1613,13 @@
 
 
   // ---------- Chargement ----------
-  fetch('data/shrines.json?v=3') // version à changer quand les données sont régénérées
+  fetch('data/shrines.json?v=4') // version à changer quand les données sont régénérées
     .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
     .then((data) => {
-      shrines = data.shrines.map(([id, name, nameLatin, lat, lon, photo, romaji = '']) => ({
-        id, name, nameLatin, lat, lon, photo, romaji, search: normalize(`${name} ${nameLatin} ${romaji}`),
+      shrines = data.shrines.map(([id, name, nameLatin, lat, lon, photo, romaji = '', prefecture = 0]) => ({
+        id, name, nameLatin, lat, lon, photo, romaji, prefecture, search: normalize(`${name} ${nameLatin} ${romaji}`),
       }));
+      prefectureNames = new Map((data.prefectures || []).map(([code, ja]) => [code, ja]));
       shrines.forEach((s) => byId.set(s.id, s));
       const todo = [], done = [], wished = [];
       for (const s of shrines) {

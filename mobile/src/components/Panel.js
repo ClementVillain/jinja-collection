@@ -8,6 +8,7 @@ import JinjaRoute from '../shared/route';
 import JinjaGeo from '../shared/geo';
 import { Postcard, useCoverPhoto } from './PostcardModal';
 import Friends from './Friends';
+import AccountScreen, { Avatar } from './AccountScreen';
 import { shrines, byId, useCollection } from '../state/CollectionContext';
 import { fmtDate, fmtDistance, fmtDuration, latinName, normalize } from '../lib/text';
 import { colors, fonts } from '../theme';
@@ -109,56 +110,6 @@ function CityView({ place, onBack, onSelect }) {
   );
 }
 
-function UsernameForm({ onDone }) {
-  const c = useCollection();
-  const [value, setValue] = useState(c.username || '');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const submit = async () => {
-    setBusy(true); setError('');
-    try { await c.chooseUsername(value); onDone?.(); } catch (err) { setError(err.message); } finally { setBusy(false); }
-  };
-  return (
-    <View style={styles.nameForm}>
-      <Text style={styles.nameLabel}>{c.username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <Text style={{ color: colors.muted }}>(visible par les autres : amis, « Découvert par »)</Text></Text>
-      <View style={styles.nameRow}>
-        <BottomSheetTextInput style={[styles.search, { flex: 1, marginBottom: 0 }]} value={value} onChangeText={setValue} autoCapitalize="none" autoCorrect={false}
-          placeholder="ex : kitsune_77" placeholderTextColor={colors.muted} maxLength={20} onSubmitEditing={submit} />
-        <Pressable style={[styles.goBtn, { paddingHorizontal: 16 }, busy && { opacity: 0.5 }]} disabled={busy} onPress={submit}><Text style={styles.goText}>OK</Text></Pressable>
-      </View>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
-  );
-}
-
-function Account() {
-  const c = useCollection();
-  const [editing, setEditing] = useState(false);
-  if (!c.googleSignInAvailable) return null;
-  if (!c.user) {
-    return (
-      <View style={styles.account}>
-        <Text style={styles.accountPitch}>Connecte-toi pour collectionner les sanctuaires (visites, « À visiter », notes, photos) et retrouver tes cartes sur le site et l'app.</Text>
-        <Pressable style={styles.googleBtn} onPress={c.signIn}><Text style={styles.googleText}>Se connecter avec Google</Text></Pressable>
-      </View>
-    );
-  }
-  return (
-    <View style={[styles.account, { flexWrap: 'wrap' }]}>
-      {c.user.picture ? <Image source={{ uri: c.user.picture }} style={styles.accountAvatar} /> : null}
-      <View style={{ flex: 1 }}>
-        <Text style={styles.accountName} numberOfLines={1}>{c.user.name}</Text>
-        {c.username ? (
-          <Text style={styles.accountUsername}>@{c.username} · <Text style={styles.link} onPress={() => setEditing(true)}>modifier</Text></Text>
-        ) : null}
-        <Text style={[styles.accountStatus, c.syncStatus.error && { color: colors.vermilion }]}>{c.syncStatus.text}</Text>
-      </View>
-      <Pressable style={styles.smallBtn} onPress={c.signOut}><Text style={styles.smallBtnText}>Déconnexion</Text></Pressable>
-      {c.username === null || editing ? <UsernameForm onDone={() => setEditing(false)} /> : null}
-    </View>
-  );
-}
-
 function CollectionCard({ id, width, onPress }) {
   const photo = useCoverPhoto(id);
   return <Pressable onPress={onPress}><Postcard id={id} width={width} photo={photo} /></Pressable>;
@@ -241,7 +192,7 @@ function RouteBox({ items, excluded, route, setRoute, onStart, onFocusRoute, sim
   );
 }
 
-export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCircuit, onFocusRoute, onFocusPlace, search, setSearch, simulate, setSimulate }) {
+export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCircuit, onFocusRoute, onFocusPlace, search, setSearch, simulate, setSimulate, account, setAccount }) {
   const c = useCollection();
   const [tab, setTab] = useState('explore');
   // Recherche gardée par App : le panneau est démonté pendant qu'une fiche est ouverte.
@@ -275,9 +226,19 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
           <Text style={styles.title}>Jinja Collection</Text>
           <Text style={styles.progress}>{n.toLocaleString('fr-FR')} / {shrines.length.toLocaleString('fr-FR')} sanctuaires visités</Text>
         </View>
+        {/* Compte : avatar en haut à droite, ouvre l'écran du compte. */}
+        <Pressable onPress={() => setAccount(true)} hitSlop={8} accessibilityLabel="Mon compte">
+          <Avatar user={c.user} size={40} />
+        </Pressable>
       </View>
       <View style={styles.bar}><View style={[styles.barFill, { width: `${Math.max(n ? 1.5 : 0, (n / shrines.length) * 100)}%` }]} /></View>
 
+      {account ? (
+        <BottomSheetScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+          <AccountScreen onBack={() => setAccount(false)} onSelect={(id) => { setAccount(false); onSelect(id); }} />
+        </BottomSheetScrollView>
+      ) : (
+      <>
       <View style={styles.tabs}>
         {TABS.map(([k, label]) => (
           <Pressable key={k} style={[styles.tab, tab === k && styles.tabOn]} onPress={() => setTab(k)}>
@@ -291,7 +252,6 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
       <BottomSheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {tab === 'explore' ? (
           <>
-            <Account />
             <BottomSheetTextInput
               style={styles.search} value={query} onChangeText={setQuery} clearButtonMode="while-editing"
               placeholder="Sanctuaire ou ville (伏見稲荷, hakusan, Kyoto…)" placeholderTextColor={colors.muted} autoCorrect={false}
@@ -355,9 +315,11 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
           ) : <Text style={styles.hint}>Ta collection est vide. Chaque sanctuaire visité te donne une carte postale.</Text>
         ) : null}
         {tab === 'collection' ? <Text style={styles.hint}>Une visite compte si ta position a été enregistrée à moins de 1 km du sanctuaire dans les 48 h précédentes (position gardée sur ton appareil, seule la position utilisée est envoyée avec la visite). Cela évite les cartes cochées depuis son canapé, mais pas la triche délibérée : un GPS falsifié trompe la vérification.</Text> : null}
-        {tab === 'friends' ? <Friends onSelect={onSelect} cardWidth={cardW} onLogin={() => setTab('explore')} /> : null}
+        {tab === 'friends' ? <Friends onSelect={onSelect} cardWidth={cardW} onLogin={() => setAccount(true)} /> : null}
         <Text style={styles.credit}>Données © OpenStreetMap · photos Wikimedia Commons</Text>
       </BottomSheetScrollView>
+      </>
+      )}
     </View>
   );
 }

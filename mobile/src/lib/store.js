@@ -9,6 +9,7 @@ export const KEYS = {
   wishDeleted: 'jinja-collection:wish-deleted',
   photos: 'jinja-collection:photos',
   googleToken: 'jinja-collection:google-token',
+  appleName: 'jinja-collection:apple-name',
   sightings: 'jinja-collection:sightings',
 };
 

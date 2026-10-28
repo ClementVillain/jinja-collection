@@ -6,15 +6,17 @@ import { AppState } from 'react-native';
 import * as Location from 'expo-location';
 import JinjaMerge from '../shared/merge';
 import JinjaProximity from '../shared/proximity';
-import { API_BASE, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, apiJson } from '../lib/api';
+import { API_BASE, APPLE_SIGN_IN, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, apiJson } from '../lib/api';
 import { KEYS, loadJson, saveJson } from '../lib/store';
 import { fetchCommunityPhotos } from '../lib/photos';
 import rawData from '../data/shrines.json';
 
 // Données des sanctuaires (OpenStreetMap), chargées une fois.
-export const shrines = rawData.shrines.map(([id, name, nameLatin, lat, lon, photo, romaji = '']) => ({
-  id, name, nameLatin, lat, lon, photo, romaji,
+export const shrines = rawData.shrines.map(([id, name, nameLatin, lat, lon, photo, romaji = '', prefecture = 0]) => ({
+  id, name, nameLatin, lat, lon, photo, romaji, prefecture,
 }));
+// Préfectures : code JIS → [nom japonais, nom latin] (contours 地球地図日本 / GSI).
+export const prefectures = new Map((rawData.prefectures || []).map(([code, ja, en]) => [code, { ja, en }]));
 export const byId = new Map(shrines.map((s) => [s.id, s]));
 
 // Module de connexion Google : seulement si l'app a été construite avec l'ID client iOS.
@@ -26,6 +28,13 @@ if (GOOGLE_IOS_CLIENT_ID) {
   } catch { GoogleSignin = null; }
 }
 export const googleSignInAvailable = !!GoogleSignin;
+
+// Module « Se connecter avec Apple » (présent seulement si l'app a la capacité correspondante).
+let AppleAuth = null;
+if (APPLE_SIGN_IN) {
+  try { AppleAuth = require('expo-apple-authentication'); } catch { AppleAuth = null; }
+}
+export const appleSignInAvailable = !!AppleAuth;
 
 function jwtPayload(token) {
   try {
@@ -46,6 +55,8 @@ export function CollectionProvider({ children }) {
   const [syncStatus, setSyncStatus] = useState({ text: '', error: false });
   // Nom d'utilisateur public (undefined : pas encore lu ; null : pas encore choisi).
   const [username, setUsernameState] = useState(undefined);
+  // Profil du compte : date d'inscription et nombre d'amis (null tant que non chargé).
+  const [profile, setProfile] = useState(null);
   // « Découvert par » : { idSanctuaire: nom du premier visiteur vérifié }.
   const [discoveries, setDiscoveries] = useState({});
   const stateRef = useRef(state);
@@ -179,12 +190,26 @@ export function CollectionProvider({ children }) {
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
     if (!valid || tokenRef.current !== token) setUsernameState(undefined);
     tokenRef.current = valid ? token : null;
-    setUser(valid ? { name: payload.name || payload.email, givenName: payload.given_name, picture: payload.picture } : null);
+    if (!valid) setProfile(null);
+    const apple = valid && payload.iss === 'https://appleid.apple.com';
+    setUser(valid ? {
+      name: apple ? (appleName.current || 'Compte Apple') : payload.name || payload.email,
+      givenName: apple ? appleName.current : payload.given_name,
+      picture: apple ? null : payload.picture,
+      provider: apple ? 'apple' : 'google',
+    } : null);
     saveJson(KEYS.googleToken, valid ? token : null);
     return !!valid;
   }
 
+  // Prénom donné par Apple (seulement à la toute première connexion) : gardé sur le téléphone.
+  const appleName = useRef(null);
+  useEffect(() => { loadJson(KEYS.appleName, null).then((n) => { appleName.current = n; }); }, []);
+
   async function silentLogin() {
+    if (AppleAuth && jwtPayload(await loadJson(KEYS.googleToken, null) || '')?.iss === 'https://appleid.apple.com') {
+      return false; // pas de renouvellement silencieux chez Apple : il faudra se reconnecter
+    }
     if (!GoogleSignin) return false;
     try {
       const res = await GoogleSignin.signInSilently();
@@ -204,6 +229,24 @@ export function CollectionProvider({ children }) {
       if (setToken(idToken)) syncNow();
     } catch (err) {
       setSyncStatus({ text: `Connexion impossible : ${err.message}`, error: true });
+    }
+  };
+
+  const signInWithApple = async () => {
+    if (!AppleAuth) return false;
+    try {
+      const cred = await AppleAuth.signInAsync({
+        requestedScopes: [AppleAuth.AppleAuthenticationScope.FULL_NAME, AppleAuth.AppleAuthenticationScope.EMAIL],
+      });
+      if (cred.fullName?.givenName) {
+        appleName.current = cred.fullName.givenName;
+        saveJson(KEYS.appleName, appleName.current);
+      }
+      if (setToken(cred.identityToken)) syncNow();
+      return true;
+    } catch (err) {
+      if (err.code !== 'ERR_REQUEST_CANCELED') setSyncStatus({ text: `Connexion impossible : ${err.message}`, error: true });
+      return false;
     }
   };
 
@@ -238,8 +281,9 @@ export function CollectionProvider({ children }) {
         refreshDiscoveries();
       }
       setSyncStatus({ text: 'Synchronisé ✓', error: false });
-      const profile = await apiJson('/api/profile', { token });
-      setUsernameState(profile.username);
+      const info = await apiJson('/api/profile', { token });
+      setUsernameState(info.username);
+      setProfile({ since: info.since || null, friends: info.friends ?? 0 });
     } catch (err) {
       if (err.status === 401) setToken(null);
       setSyncStatus({ text: `Synchro impossible : ${err.message}`, error: true });
@@ -290,7 +334,7 @@ export function CollectionProvider({ children }) {
     ready, ...state, isVisited, isWished, visitedOrdered,
     markVisited, unmarkVisited, setNote, toggleWish, recordSighting,
     community, refreshCommunity, uploadPhoto,
-    user, signIn, signOut, syncNow, syncStatus, googleSignInAvailable,
+    user, signIn, signInWithApple, signOut, syncNow, syncStatus, googleSignInAvailable, appleSignInAvailable, profile,
     username, chooseUsername, discoveries, freshToken,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

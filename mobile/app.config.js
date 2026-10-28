@@ -11,5 +11,14 @@ module.exports = ({ config }) => {
     const iosUrlScheme = `com.googleusercontent.apps.${iosClientId.replace('.apps.googleusercontent.com', '')}`;
     plugins.push(['@react-native-google-signin/google-signin', { iosUrlScheme }]);
   }
-  return { ...config, plugins, extra: { ...config.extra, googleIosClientId: iosClientId } };
+  // « Se connecter avec Apple » demande la capacité Sign in with Apple, refusée aux comptes
+  // développeur gratuits : on ne l'active qu'avec APPLE_SIGN_IN=1 (compte payant, App Store).
+  const appleSignIn = process.env.APPLE_SIGN_IN === '1';
+  if (appleSignIn) plugins.push('expo-apple-authentication');
+  return {
+    ...config,
+    ios: { ...config.ios, ...(appleSignIn ? { usesAppleSignIn: true } : {}) },
+    plugins,
+    extra: { ...config.extra, googleIosClientId: iosClientId, appleSignIn },
+  };
 };
