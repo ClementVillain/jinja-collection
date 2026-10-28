@@ -1,6 +1,6 @@
 // Carte native (MapLibre) : fond OpenStreetMap vectoriel (OpenFreeMap, gratuit, sans clé),
 // ~30 000 sanctuaires regroupés en bulles par le téléphone, visités en rouge, « À visiter » en
-// doré, sanctuaire sélectionné, circuit et navigation.
+// doré (regroupés aussi, en bulles de leur couleur), sanctuaire sélectionné, circuit et navigation.
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import { Camera, GeoJSONSource, Layer, Map, NativeUserLocation } from '@maplibre/maplibre-react-native';
@@ -16,6 +16,11 @@ const CLUSTER_LABEL = ['case',
   ['to-string', ['get', 'point_count']]];
 // Vue de départ : tout le Japon, décalé vers le haut car le volet couvre le bas de l'écran.
 const JAPAN = { center: [136.8, 33.2], zoom: 3.9 };
+// Visités et « À visiter » : bulles plus petites, points séparés dès le zoom 13.
+const OVERLAY_CLUSTER = { cluster: true, clusterRadius: 45, clusterMaxZoom: 12 };
+const isCluster = ['has', 'point_count'];
+const notCluster = ['!', isCluster];
+const overlayRadius = ['step', ['get', 'point_count'], 14, 10, 17, 100, 21];
 
 const point = (s, props = {}) => ({ type: 'Feature', id: s.id, properties: { id: s.id, ...props }, geometry: { type: 'Point', coordinates: [s.lon, s.lat] } });
 const collection = (features) => ({ type: 'FeatureCollection', features });
@@ -28,6 +33,8 @@ const ShrineMap = forwardRef(function ShrineMap({
 }, ref) {
   const camera = useRef(null);
   const source = useRef(null);
+  const wishedSource = useRef(null);
+  const visitedSource = useRef(null);
 
   useImperativeHandle(ref, () => ({
     // padding : zone de la carte à viser (le volet du bas couvre une partie de l'écran).
@@ -55,19 +62,16 @@ const ShrineMap = forwardRef(function ShrineMap({
     type: 'Feature', properties: { label: nav.circuit ? String(i + 1) : '⛩' }, geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
   })).filter(Boolean)) : null), [nav?.stops, nav?.target, nav?.circuit]);
 
-  const pressShrine = async (e) => {
+  // Toucher une bulle zoome dessus (chaque source a ses bulles) ; toucher un point l'ouvre.
+  const pressIn = (src) => async (e) => {
     const f = e.nativeEvent.features?.[0];
     if (!f) return;
     if (f.properties?.cluster) {
-      const zoom = await source.current?.getClusterExpansionZoom(f.properties.cluster_id).catch(() => null);
+      const zoom = await src.current?.getClusterExpansionZoom(f.properties.cluster_id).catch(() => null);
       camera.current?.easeTo({ center: f.geometry.coordinates, zoom: Math.min((zoom ?? 10) + 0.5, 16), padding: getPadding?.(), duration: 500 });
       return;
     }
     if (f.properties?.id) onSelect(f.properties.id);
-  };
-  const pressOverlay = (e) => {
-    const id = e.nativeEvent.features?.[0]?.properties?.id;
-    if (id) onSelect(id);
   };
 
   return (
@@ -83,9 +87,9 @@ const ShrineMap = forwardRef(function ShrineMap({
       <Camera ref={camera} initialViewState={JAPAN} />
       {showUser && !nav ? <NativeUserLocation /> : null}
 
-      <GeoJSONSource id="shrines" ref={source} data={ALL} cluster clusterRadius={55} clusterMaxZoom={14} onPress={pressShrine}>
+      <GeoJSONSource id="shrines" ref={source} data={ALL} cluster clusterRadius={55} clusterMaxZoom={14} onPress={pressIn(source)}>
         <Layer
-          id="clusters" type="circle" filter={['has', 'point_count']}
+          id="clusters" type="circle" filter={isCluster}
           paint={{
             'circle-color': 'rgba(43,36,32,0.82)', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5,
             'circle-radius': ['step', ['get', 'point_count'], 15, 50, 19, 500, 24],
@@ -102,14 +106,22 @@ const ShrineMap = forwardRef(function ShrineMap({
         />
       </GeoJSONSource>
 
-      <GeoJSONSource id="wished" data={wished} onPress={pressOverlay}>
-        <Layer id="wished-dot" type="circle" paint={{ 'circle-color': '#ffffff', 'circle-radius': 10, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 3 }} />
-        <Layer id="wished-star" type="circle" paint={{ 'circle-color': colors.gold, 'circle-radius': 4 }} />
+      <GeoJSONSource id="wished" ref={wishedSource} data={wished} {...OVERLAY_CLUSTER} onPress={pressIn(wishedSource)}>
+        <Layer id="wished-clusters" type="circle" filter={isCluster}
+          paint={{ 'circle-color': '#ffffff', 'circle-radius': overlayRadius, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 3 }} />
+        <Layer id="wished-count" type="symbol" filter={isCluster}
+          layout={{ 'text-field': CLUSTER_LABEL, 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': colors.goldText }} />
+        <Layer id="wished-dot" type="circle" filter={notCluster} paint={{ 'circle-color': '#ffffff', 'circle-radius': 10, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 3 }} />
+        <Layer id="wished-star" type="circle" filter={notCluster} paint={{ 'circle-color': colors.gold, 'circle-radius': 4 }} />
       </GeoJSONSource>
 
-      <GeoJSONSource id="visited" data={visited} onPress={pressOverlay}>
-        <Layer id="visited-dot" type="circle" paint={{ 'circle-color': colors.vermilion, 'circle-radius': 11, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 2.5 }} />
-        <Layer id="visited-center" type="circle" paint={{ 'circle-color': '#ffffff', 'circle-radius': 3 }} />
+      <GeoJSONSource id="visited" ref={visitedSource} data={visited} {...OVERLAY_CLUSTER} onPress={pressIn(visitedSource)}>
+        <Layer id="visited-clusters" type="circle" filter={isCluster}
+          paint={{ 'circle-color': colors.vermilion, 'circle-radius': overlayRadius, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 2.5 }} />
+        <Layer id="visited-count" type="symbol" filter={isCluster}
+          layout={{ 'text-field': CLUSTER_LABEL, 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': '#ffffff' }} />
+        <Layer id="visited-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.vermilion, 'circle-radius': 11, 'circle-stroke-color': colors.gold, 'circle-stroke-width': 2.5 }} />
+        <Layer id="visited-center" type="circle" filter={notCluster} paint={{ 'circle-color': '#ffffff', 'circle-radius': 3 }} />
       </GeoJSONSource>
 
       {routeLine && !nav ? (

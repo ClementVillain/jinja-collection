@@ -217,6 +217,9 @@ body.signed-in #export-btn { display: none; }
   font-size: 12px; font-weight: 700; border: 3px solid rgba(255, 255, 255, 0.85);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
+/* Bulles des visités (rouge, bord doré) et de la liste « À visiter » (blanc, bord doré). */
+.cluster-done span { background: var(--vermilion); border: 3px solid var(--gold); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+.cluster-wish span { background: #fff; color: #a8842f; border: 3px solid var(--gold); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
 
 /* Mention OpenStreetMap discrète : petite, sans fond, semi-transparente. */
 .leaflet-container .leaflet-control-attribution {

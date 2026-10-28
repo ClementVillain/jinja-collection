@@ -104,13 +104,27 @@
       return L.divIcon({ className: 'cluster', html: `<span>${n >= 1000 ? Math.round(n / 100) / 10 + 'k' : n}</span>`, iconSize: [size, size] });
     },
   });
-  // Les sanctuaires visités ne sont jamais regroupés : ils restent visibles à tout niveau de zoom.
-  const visitedLayer = L.layerGroup();
-  // Idem pour la liste « À visiter » : étoiles dorées toujours visibles.
-  const wishLayer = L.layerGroup();
+  // Visités et « À visiter » : groupes à part, en bulles de leur couleur au dézoom. Leurs bulles
+  // ont leur propre calque, au-dessus des autres marqueurs (les visités tout en haut).
+  map.createPane('wishClusters').style.zIndex = 620;
+  map.createPane('visitedClusters').style.zIndex = 640;
+  const colorGroup = (kind, pane) => L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 45,
+    disableClusteringAtZoom: 13,
+    clusterPane: pane,
+    iconCreateFunction(c) {
+      const n = c.getChildCount();
+      const size = n < 10 ? 32 : n < 100 ? 38 : 46;
+      return L.divIcon({ className: `cluster cluster-${kind}`, html: `<span>${n >= 1000 ? Math.round(n / 100) / 10 + 'k' : n}</span>`, iconSize: [size, size] });
+    },
+  });
+  const visitedLayer = colorGroup('done', 'visitedClusters');
+  const wishLayer = colorGroup('wish', 'wishClusters');
   map.addLayer(cluster);
   map.addLayer(wishLayer);
   map.addLayer(visitedLayer);
+  const groupOf = (id) => (isVisited(id) ? visitedLayer : isWished(id) ? wishLayer : cluster);
 
   function makeMarker(s) {
     const m = L.marker([s.lat, s.lon], { icon: isVisited(s.id) ? iconDone : isWished(s.id) ? iconWish : iconTodo, title: s.name });
@@ -519,7 +533,8 @@
     if (isMobile()) setCollapsed(true);
     const z = Math.max(map.getZoom(), zoom);
     const center = centerAbove([s.lat, s.lon], z, sheetCover());
-    const open = () => (cluster.hasLayer(m) ? cluster.zoomToShowLayer(m, () => openShrinePopup(m)) : openShrinePopup(m));
+    // Point peut-être encore dans une bulle : zoomToShowLayer l'en sort avant d'ouvrir la popup.
+    const open = () => groupOf(id).zoomToShowLayer(m, () => openShrinePopup(m));
     // Déjà centrée dessus : la carte ne bougerait pas et « moveend » n'arriverait jamais.
     if (map.getZoom() >= zoom && map.getCenter().distanceTo(center) < 20) { open(); return; }
     map.once('moveend', open);
@@ -609,7 +624,7 @@
     saveVisits();
     placeMarker(id);
     refreshPanels();
-    if (wasOpen) m.openPopup();
+    if (wasOpen) groupOf(id).zoomToShowLayer(m, () => m.openPopup());
   }
 
   document.addEventListener('click', (e) => {
@@ -1541,14 +1556,16 @@
         id, name, nameLatin, lat, lon, photo, romaji, search: normalize(`${name} ${nameLatin} ${romaji}`),
       }));
       shrines.forEach((s) => byId.set(s.id, s));
-      const todo = [];
+      const todo = [], done = [], wished = [];
       for (const s of shrines) {
         const m = makeMarker(s);
-        if (isVisited(s.id)) visitedLayer.addLayer(m.setZIndexOffset(1000));
-        else if (isWished(s.id)) wishLayer.addLayer(m.setZIndexOffset(500));
+        if (isVisited(s.id)) done.push(m.setZIndexOffset(1000));
+        else if (isWished(s.id)) wished.push(m.setZIndexOffset(500));
         else todo.push(m);
       }
       cluster.addLayers(todo);
+      wishLayer.addLayers(wished);
+      visitedLayer.addLayers(done);
       refreshPanels();
     })
     .catch((err) => {
