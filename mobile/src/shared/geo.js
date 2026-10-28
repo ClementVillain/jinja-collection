@@ -101,9 +101,31 @@
   const cacheKey = (query) => String(query).trim().toLowerCase();
   const cached = (query) => cache.get(cacheKey(query));
 
+  // En japonais, « 京都 » désigne surtout la gare et « 奈良 » de petits quartiers : la ville
+  // s'écrit 京都市, 奈良市. Pour un nom sans suffixe de commune, on cherche aussi « nom + 市 »
+  // (puis « nom + 町 » si rien) et la commune passe en premier.
+  const JAPANESE = /[\u3040-\u30ff\u3400-\u9fff]/;
+  const MUNICIPAL = /[市町村区]$/;
+
   async function findPlaces(query, { headers } = {}) {
     const key = cacheKey(query);
     if (cache.has(key)) return cache.get(key);
+    const q = String(query).trim();
+    let places = [];
+    if (JAPANESE.test(q) && !MUNICIPAL.test(q)) {
+      for (const suffix of ['市', '町']) {
+        places = await fetchPlaces(q + suffix, headers);
+        if (places.length) break;
+      }
+    }
+    const seen = new Set(places.map((p) => p.key));
+    places = [...places, ...(await fetchPlaces(query, headers)).filter((p) => !seen.has(p.key))];
+    if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value);
+    cache.set(key, places);
+    return places;
+  }
+
+  async function fetchPlaces(query, headers) {
     const at = Math.max(Date.now(), nextSlot);
     nextSlot = at + MIN_INTERVAL;
     if (at > Date.now()) await new Promise((r) => setTimeout(r, at - Date.now()));
@@ -114,10 +136,7 @@
       throw new Error('pas de connexion au service de recherche de lieux');
     }
     if (!res.ok) throw new Error(`service de recherche de lieux indisponible (${res.status})`);
-    const places = pickPlaces(await res.json());
-    if (cache.size >= CACHE_SIZE) cache.delete(cache.keys().next().value);
-    cache.set(key, places);
-    return places;
+    return pickPlaces(await res.json());
   }
 
   const api = {
