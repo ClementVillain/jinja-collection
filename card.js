@@ -14,7 +14,7 @@
   ];
 
   const RARITIES = [
-    { key: 'commun', label: 'Commune', border: '#efe6d8', chance: 0.72 },
+    { key: 'commun', label: 'Commune', border: '#e3ebe6', chance: 0.72 },
     { key: 'rare', label: 'Rare ★', border: 'url(#gold)', chance: 0.23 },
     { key: 'legendaire', label: 'Légendaire ★★', border: 'url(#holo)', chance: 0.05 },
   ];
@@ -175,7 +175,7 @@
     <clipPath id="${uid}clip"><rect x="20" y="20" width="${W - 40}" height="${H - 20}" rx="6"/></clipPath>
   </defs>
   <rect x="0" y="0" width="${W}" height="${H + 120}" rx="18" fill="${rarity.border.replace('url(#', 'url(#' + uid)}"/>
-  <rect x="10" y="10" width="${W - 20}" height="${H + 100}" rx="12" fill="#fbf7f0"/>
+  <rect x="10" y="10" width="${W - 20}" height="${H + 100}" rx="12" fill="#ffffff"/>
   <g clip-path="url(#${uid}clip)">
     ${photo ? photoLayer(photo, uid) : scene(id, theme, uid)}
   </g>
@@ -185,10 +185,10 @@
     <text y="-4" text-anchor="middle" font-family="'Shippori Mincho', serif" font-size="20" font-weight="700" fill="#c8281e" opacity="0.9">参拝</text>
     <text y="16" text-anchor="middle" font-family="'Zen Kaku Gothic New', sans-serif" font-size="9" fill="#c8281e" opacity="0.9">${visit && visit.date ? new Date(visit.date).toLocaleDateString('fr-FR') : ''}</text>
   </g>
-  <text x="36" y="${H + 44}" font-family="'Shippori Mincho', serif" font-size="32" font-weight="700" fill="#2b2420">${esc(shrine.name)}</text>
-  <text x="36" y="${H + 72}" font-family="'Zen Kaku Gothic New', sans-serif" font-size="16" fill="#6d6259">${esc(latin)}</text>
-  <text x="36" y="${H + 98}" font-family="'Zen Kaku Gothic New', sans-serif" font-size="13" fill="#9a8d80">${esc(theme.label)} · ${esc(rarity.label)}${date ? ' · visité le ' + esc(date) : ''}</text>
-  <text x="${W - 36}" y="${H + 98}" text-anchor="end" font-family="'Shippori Mincho', serif" font-size="18" font-weight="700" fill="#c8281e">No. ${num}</text>
+  <text x="36" y="${H + 44}" font-family="'Shippori Mincho', serif" font-size="32" font-weight="700" fill="#1d1e18">${esc(shrine.name)}</text>
+  <text x="36" y="${H + 72}" font-family="'Zen Kaku Gothic New', sans-serif" font-size="16" fill="#5e6a60">${esc(latin)}</text>
+  <text x="36" y="${H + 98}" font-family="'Zen Kaku Gothic New', sans-serif" font-size="13" fill="#7d897f">${esc(theme.label)} · ${esc(rarity.label)}${date ? ' · visité le ' + esc(date) : ''}</text>
+  <text x="${W - 36}" y="${H + 98}" text-anchor="end" font-family="'Shippori Mincho', serif" font-size="18" font-weight="700" fill="#4f6e55">No. ${num}</text>
 </svg>`;
   }
 
