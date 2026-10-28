@@ -156,6 +156,16 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .item-romaji { font-size: 11px; color: var(--ink); opacity: 0.5; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Recherche par ville */
+#city-results:empty { display: none; }
+.item.city .item-icon { background: var(--paper-2); font-size: 15px; }
+.city-error { color: var(--vermilion); }
+#city-view[hidden], #city-results[hidden], #search-results[hidden] { display: none; }
+.city-back { display: block; margin: 12px 0 6px; font-size: 13px; }
+.city-title { font-family: 'Shippori Mincho', serif; font-size: 19px; margin: 0; }
+.city-meta { margin: 2px 0 8px; font-size: 12px; color: var(--muted); }
+.city-sort { display: inline-flex; }
+
 .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .card-thumb { padding: 0; border: 0; background: none; border-radius: 10px; transition: transform 0.15s; }
 .card-thumb:hover { transform: translateY(-2px) rotate(-1deg); }

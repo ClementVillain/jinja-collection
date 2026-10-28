@@ -847,19 +847,15 @@
   // Ignore casse, accents, espaces et tirets : « fushimi inari taisha » trouve « Fushimi Inari-taisha ».
   const normalize = (str) => str.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[\s\-_'’.・]/g, '');
   let searchTimer;
-  $('#search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderSearch, 150); });
+  $('#search').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderSearch, 150);
+    if (cityView) closeCity();
+    scheduleCitySearch();
+  });
 
-  function renderSearch() {
-    const q = normalize($('#search').value.trim());
-    const list = $('#search-results');
-    $('#search-hint').hidden = !!q;
-    if (!q) { list.innerHTML = ''; return; }
-    const results = [];
-    for (const s of shrines) {
-      if (s.search.includes(q)) { results.push(s); if (results.length >= 60) break; }
-    }
-    list.innerHTML = results.length ? results.map((s) => `
-      <li class="item ${isVisited(s.id) ? 'visited' : ''}">
+  const shrineItemHtml = (s) => `
+      <li class="item ${isVisited(s.id) ? 'visited' : isWished(s.id) ? 'wished' : ''}">
         <button class="item-main" data-action="locate" data-id="${s.id}">
           <span class="item-icon">${isVisited(s.id) ? '⛩' : isWished(s.id) ? '★' : '◦'}</span>
           <span class="item-text">
@@ -868,8 +864,118 @@
             ${isVisited(s.id) ? '<span class="item-sub">visité ✓</span>' : ''}
           </span>
         </button>
-      </li>`).join('') : '<li class="hint">Aucun sanctuaire trouvé.</li>';
+      </li>`;
+
+  function renderSearch() {
+    const q = normalize($('#search').value.trim());
+    const list = $('#search-results');
+    $('#search-hint').hidden = !!q || !!cityView;
+    if (cityView) renderCityView();
+    if (!q) { list.innerHTML = ''; return; }
+    const results = [];
+    for (const s of shrines) {
+      if (s.search.includes(q)) { results.push(s); if (results.length >= 60) break; }
+    }
+    list.innerHTML = results.length ? results.map(shrineItemHtml).join('') : '<li class="hint">Aucun sanctuaire de ce nom.</li>';
   }
+
+  // ---------- Recherche par ville (geo.js : Nominatim, puis sanctuaires dans le contour) ----------
+  // Nominatim demande au plus 1 requête par seconde : on attend une pause de saisie.
+  let cityTimer;
+  let cityState = { query: '', status: 'idle', places: [], error: '' };
+  let cityView = null; // ville ouverte (liste de ses sanctuaires)
+  let citySort = 'todo'; // 'todo' : non visités d'abord ; 'name' : par nom
+  const placeShrines = new WeakMap();
+  function shrinesOfPlace(place) {
+    if (!placeShrines.has(place)) placeShrines.set(place, JinjaGeo.shrinesIn(place, shrines));
+    return placeShrines.get(place);
+  }
+
+  function scheduleCitySearch() {
+    clearTimeout(cityTimer);
+    const query = $('#search').value.trim();
+    if (!JinjaGeo.isCityQuery(query)) { cityState = { query, status: 'idle', places: [], error: '' }; renderCities(); return; }
+    const cached = JinjaGeo.cached(query);
+    if (cached) { showPlaces(query, cached); return; }
+    cityTimer = setTimeout(async () => {
+      cityState = { query, status: 'loading', places: [], error: '' };
+      renderCities();
+      try {
+        showPlaces(query, await JinjaGeo.findPlaces(query));
+      } catch (err) {
+        if ($('#search').value.trim() !== query) return;
+        cityState = { query, status: 'error', places: [], error: err.message };
+        renderCities();
+      }
+    }, 600);
+  }
+
+  function showPlaces(query, places) {
+    if ($('#search').value.trim() !== query) return; // saisie modifiée entre-temps
+    cityState = { query, status: 'done', places: places.filter((p) => shrinesOfPlace(p).length), error: '' };
+    renderCities();
+  }
+
+  function renderCities() {
+    const { status, places, error } = cityState;
+    const count = (n) => `${n.toLocaleString('fr-FR')} sanctuaire${n > 1 ? 's' : ''}`;
+    $('#city-results').innerHTML = status === 'loading' ? '<li class="hint city-status">Recherche de villes…</li>'
+      : status === 'error' ? `<li class="hint city-error">Recherche par ville impossible : ${esc(error)}. Vérifie ta connexion et réessaie.</li>`
+        : places.map((p, i) => `
+      <li class="item city">
+        <button class="item-main" data-city="${i}">
+          <span class="item-icon">🏙</span>
+          <span class="item-text">
+            <span class="item-name">${esc(p.label)} — ${count(shrinesOfPlace(p).length)}</span>
+            ${p.region ? `<span class="item-sub">${esc(p.region)}</span>` : ''}
+          </span>
+        </button>
+      </li>`).join('');
+  }
+
+  function openCity(place) {
+    if (!place) return;
+    cityView = place;
+    renderCityView();
+    $('#tab-explore').scrollTop = 0;
+    const [w, s, e, n] = place.bbox;
+    const cover = sheetCover();
+    map.fitBounds([[s, w], [n, e]], { paddingTopLeft: [20, 20], paddingBottomRight: [20, 20 + cover] });
+  }
+
+  function closeCity() {
+    cityView = null;
+    renderCityView();
+    $('#search-hint').hidden = !!$('#search').value.trim();
+  }
+
+  function renderCityView() {
+    const view = $('#city-view');
+    view.hidden = !cityView;
+    $('#city-results').hidden = $('#search-results').hidden = !!cityView;
+    if (!cityView) { view.innerHTML = ''; return; }
+    $('#search-hint').hidden = true;
+    const byName = (a, b) => a.name.localeCompare(b.name, 'ja');
+    const list = [...shrinesOfPlace(cityView)]
+      .sort(citySort === 'name' ? byName : (a, b) => isVisited(a.id) - isVisited(b.id) || byName(a, b));
+    const done = list.filter((s) => isVisited(s.id)).length;
+    view.innerHTML = `
+      <button type="button" class="link-btn city-back" data-city-back>← Retour à la recherche</button>
+      <h2 class="city-title">🏙 ${esc(cityView.label)}</h2>
+      <p class="city-meta">${cityView.region ? esc(cityView.region) + ' · ' : ''}${list.length.toLocaleString('fr-FR')} sanctuaire${list.length > 1 ? 's' : ''} · ${done} visité${done > 1 ? 's' : ''}</p>
+      <div class="route-modes city-sort">
+        <button type="button" data-city-sort="todo" class="${citySort === 'todo' ? 'on' : ''}">Non visités d'abord</button>
+        <button type="button" data-city-sort="name" class="${citySort === 'name' ? 'on' : ''}">Par nom</button>
+      </div>
+      <ul class="list">${list.map(shrineItemHtml).join('')}</ul>`;
+  }
+
+  $('#tab-explore').addEventListener('click', (e) => {
+    const city = e.target.closest('[data-city]');
+    if (city) openCity(cityState.places[+city.dataset.city]);
+    else if (e.target.closest('[data-city-back]')) closeCity();
+    else if (e.target.closest('[data-city-sort]')) { citySort = e.target.closest('[data-city-sort]').dataset.citySort; renderCityView(); }
+  });
 
   // ---------- Carte postale ----------
   // Crédit affiché sur la carte, en texte simple.
@@ -1365,6 +1471,13 @@
     const vh = window.visualViewport?.height || window.innerHeight;
     const peek = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-peek'));
     return { collapsed: peek, half: vh * 0.64, full: vh - 10 };
+  }
+
+  // Hauteur de carte cachée par le volet (mobile) ; en plein écran, il repasse à moitié pour la montrer.
+  function sheetCover() {
+    if (!isMobile()) return 0;
+    if (sheetState() === 'full') setSheet('half');
+    return sheetHeights()[sheetState()];
   }
 
   let drag = null;

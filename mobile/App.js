@@ -3,7 +3,7 @@
 // postale pour chacun, prépare des circuits et laisse-toi guider jusqu'à eux.
 import 'react-native-gesture-handler';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +31,8 @@ function Main() {
   const [route, setRoute] = useState(null);
   const [showUser, setShowUser] = useState(false);
   const [simulate, setSimulate] = useState(false);
+  const [search, setSearch] = useState({ query: '', city: null });
+  const { height } = useWindowDimensions();
   const sheetBefore = useRef(SNAP.half);
   const sheetIndex = useRef(SNAP.half);
   const snapPoints = useMemo(() => [96 + insets.bottom, '52%', '94%'], [insets.bottom]);
@@ -120,6 +122,14 @@ function Main() {
             setRoute={setRoute}
             onFocusRoute={(r) => { map.current?.fitCoords(r.geometry.coordinates); sheet.current?.snapToIndex(SNAP.collapsed); }}
             onStartCircuit={startCircuit}
+            onFocusPlace={(p) => {
+              // La liste de la ville reste visible : on cadre la carte au-dessus du volet à moitié.
+              const [w, s, e, n] = p.bbox;
+              if (sheetIndex.current === SNAP.full) sheet.current?.snapToIndex(SNAP.half);
+              map.current?.fitCoords([[w, s], [e, n]], { top: insets.top + 20, bottom: height * 0.52 + 20, left: 20, right: 20 });
+            }}
+            search={search}
+            setSearch={setSearch}
             simulate={simulate}
             setSimulate={setSimulate}
           />
