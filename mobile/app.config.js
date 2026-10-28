@@ -15,6 +15,15 @@ module.exports = ({ config }) => {
   // développeur gratuits : on ne l'active qu'avec APPLE_SIGN_IN=1 (compte payant, App Store).
   const appleSignIn = process.env.APPLE_SIGN_IN === '1';
   if (appleSignIn) plugins.push('expo-apple-authentication');
+  else {
+    // Le module installé ajoute sa capacité automatiquement : on la retire, sinon la signature
+    // avec un compte gratuit échoue.
+    const { withEntitlementsPlist } = require('expo/config-plugins');
+    plugins.push((cfg) => withEntitlementsPlist(cfg, (mod) => {
+      delete mod.modResults['com.apple.developer.applesignin'];
+      return mod;
+    }));
+  }
   return {
     ...config,
     ios: { ...config.ios, ...(appleSignIn ? { usesAppleSignIn: true } : {}) },
