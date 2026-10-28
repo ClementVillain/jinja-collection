@@ -505,3 +505,9 @@ body.account-open .tabs, body.account-open .tab-panel { display: none !important
 .avatar-pen { right: 2px; bottom: 2px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; border: 2px solid #fff; }
 .image-status { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
 .image-status.error { color: var(--danger); }
+
+/* Torii monochrome : prend la couleur du texte (blanc sur fond olive). */
+.torii { width: 1em; height: 1em; vertical-align: -0.14em; fill: currentColor; flex-shrink: 0; }
+.brand-mark .torii, .pin-done .torii, .item-icon .torii { width: 62%; height: 62%; vertical-align: 0; }
+.route-pin .torii { width: 70%; height: 70%; vertical-align: 0; }
+.nav-arrive-icon .torii { width: 1.1em; height: 1.1em; }

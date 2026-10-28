@@ -59,7 +59,7 @@ const ShrineMap = forwardRef(function ShrineMap({
   const navLine = useMemo(() => (nav?.remaining?.length > 1 ? collection([{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: nav.remaining } }]) : null), [nav?.remaining]);
   const navMe = useMemo(() => (nav?.pos ? collection([{ type: 'Feature', properties: { heading: nav.pos.heading ?? 0, hasHeading: nav.pos.heading != null }, geometry: { type: 'Point', coordinates: nav.pos.point } }]) : null), [nav?.pos]);
   const navStops = useMemo(() => (nav ? collection(nav.stops.map((s, i) => (i < nav.target ? null : {
-    type: 'Feature', properties: { label: nav.circuit ? String(i + 1) : '⛩' }, geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+    type: 'Feature', properties: { label: nav.circuit ? String(i + 1) : '' }, geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
   })).filter(Boolean)) : null), [nav?.stops, nav?.target, nav?.circuit]);
 
   // Toucher une bulle zoome dessus (chaque source a ses bulles) ; toucher un point l'ouvre.

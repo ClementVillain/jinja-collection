@@ -11,6 +11,7 @@ import Friends from './Friends';
 import AccountScreen, { Avatar } from './AccountScreen';
 import { shrines, byId, useCollection } from '../state/CollectionContext';
 import { fmtDate, fmtDistance, fmtDuration, latinName, normalize } from '../lib/text';
+import Torii from './Torii';
 import { colors, fonts } from '../theme';
 
 const SEARCH_INDEX = shrines.map((s) => ({ s, key: normalize(`${s.name} ${s.nameLatin} ${s.romaji}`) }));
@@ -56,7 +57,7 @@ function Item({ s, icon, iconStyle, sub, right, onPress }) {
   return (
     <View style={styles.item}>
       <Pressable style={styles.itemMain} onPress={onPress}>
-        <View style={[styles.itemIcon, iconStyle]}><Text style={[styles.itemIconText, iconColor && { color: iconColor }]}>{icon}</Text></View>
+        <View style={[styles.itemIcon, iconStyle]}>{icon === 'torii' ? <Torii size={17} color={iconColor || colors.muted} /> : <Text style={[styles.itemIconText, iconColor && { color: iconColor }]}>{icon}</Text>}</View>
         <View style={{ flex: 1 }}>
           <Text style={styles.itemName} numberOfLines={1}>{s.name}</Text>
           {latin ? <Text style={styles.itemRomaji} numberOfLines={1}>{latin}</Text> : null}
@@ -72,7 +73,7 @@ function ShrineItem({ s, onSelect }) {
   const c = useCollection();
   return (
     <Item s={s} onPress={() => onSelect(s.id)}
-      icon={c.isVisited(s.id) ? '⛩' : c.isWished(s.id) ? '★' : '◦'}
+      icon={c.isVisited(s.id) ? 'torii' : c.isWished(s.id) ? '★' : '◦'}
       iconStyle={c.isVisited(s.id) ? styles.iconVisited : c.isWished(s.id) ? styles.iconWish : null}
       sub={c.isVisited(s.id) ? 'visité ✓' : null} />
   );
@@ -221,7 +222,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.brand}>
-        <View style={styles.brandMark}><Text style={styles.brandMarkText}>⛩</Text></View>
+        <View style={styles.brandMark}><Torii size={24} color="#ffffff" /></View>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Jinja Collection</Text>
           <Text style={styles.progress}>{n.toLocaleString('fr-FR')} / {shrines.length.toLocaleString('fr-FR')} sanctuaires visités</Text>

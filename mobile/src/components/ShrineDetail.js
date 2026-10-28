@@ -10,6 +10,7 @@ import ShrineCard from '../shared/card';
 import { coverSlides, creditOf, forgetPhoto, rememberAuthor } from '../lib/photos';
 import { fmtDate, latinName } from '../lib/text';
 import { useCollection } from '../state/CollectionContext';
+import Torii from './Torii';
 import { colors, fonts } from '../theme';
 
 const COVER_H = 190;
@@ -167,7 +168,9 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
                 if (error) setStatus({ error: true, text: error }); else onOpenCard(shrine.id, true);
               }}
             >
-              <Text style={styles.primaryText}>{checking ? 'Vérification de ta position…' : "J'y suis allé ⛩"}</Text>
+              {checking ? <Text style={styles.primaryText}>Vérification de ta position…</Text> : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><Text style={styles.primaryText}>J'y suis allé</Text><Torii size={17} color="#ffffff" /></View>
+              )}
             </Pressable>
             <Pressable style={[styles.btn, styles.ghost, wished && styles.wishOn]} onPress={() => (c.user ? c.toggleWish(shrine.id) : onLoginHint())}>
               <Text style={[styles.ghostText, wished && { color: colors.accentStrong }]}>{wished ? '★ Retirer' : '☆ À visiter'}</Text>

@@ -302,13 +302,16 @@
   const simulated = () => typeof location !== 'undefined' && new URLSearchParams(location.search).get('simulate') === '1';
   const now = () => Date.now();
 
+  // Torii monochrome (prend la couleur du texte) : l'émoji ⛩ s'affiche toujours en rouge.
+  const TORII = '<svg class="torii" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 4.2Q12 6.6 22.5 4.2L21.9 7.1Q12 8.9 2.1 7.1Z"/><rect x="3.6" y="10" width="16.8" height="1.9" rx=".4"/><rect x="5.4" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="16.3" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="11" y="7.8" width="2" height="2.6"/></svg>';
+
   function arrowSvg(icon) {
     const svg = (body) => `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
     const head = (x, y, a) => {
       const p = (da) => `${(x - 11 * Math.sin(rad(a + da))).toFixed(1)},${(y + 11 * Math.cos(rad(a + da))).toFixed(1)}`;
       return `<polyline points="${p(-40)} ${x.toFixed(1)},${y.toFixed(1)} ${p(40)}"/>`;
     };
-    if (icon === 'arrive') return '<span class="nav-arrive-icon">⛩</span>';
+    if (icon === 'arrive') return `<span class="nav-arrive-icon">${TORII}</span>`;
     if (icon === 'roundabout') return svg(`<circle cx="24" cy="20" r="9"/><path d="M24 44V29"/><path d="M30.4 13.6L38 6"/>${head(38, 6, 45)}`);
     if (icon === 'uturn') return svg(`<path d="M32 44V20a8 8 0 0 0-16 0v14"/>${head(16, 36, 180)}`);
     const angles = { straight: 0, 'slight-right': 45, right: 90, 'sharp-right': 135, 'slight-left': -45, left: -90, 'sharp-left': -135 };
@@ -548,7 +551,7 @@
     nav.pins?.forEach((m) => m.remove());
     nav.pins = nav.stops.map((s, i) => {
       if (i < nav.target) return null;
-      const label = nav.circuit ? String(i + 1) : '⛩';
+      const label = nav.circuit ? String(i + 1) : TORII;
       const icon = L.divIcon({ className: 'route-pin', html: `<span>${label}</span>`, iconSize: [22, 22], iconAnchor: [11, 11] });
       return L.marker([s.lat, s.lon], { icon, zIndexOffset: 2000, title: s.name, interactive: false }).addTo(nav.layer);
     }).filter(Boolean);
@@ -707,7 +710,7 @@
 
   const visitButton = (s) => (ctx.isVisited(s.id)
     ? '<span class="nav-visited">✓ Dans tes visites</span>'
-    : `<button type="button" class="nav-visit" data-nav="visit" data-id="${escHtml(s.id)}">J'y suis allé ⛩</button>`);
+    : `<button type="button" class="nav-visit" data-nav="visit" data-id="${escHtml(s.id)}">J'y suis allé ${TORII}</button>`);
 
   function render() {
     if (!nav || !ui) return;
@@ -760,7 +763,7 @@
       msgHtml = '<button type="button" class="nav-done" data-nav="stop">Fermer</button>';
     } else if (msg?.kind === 'arrive') {
       msgKind = 'arrive';
-      msgHtml = `<span class="nav-msg-text">⛩ Arrivé à <b>${escHtml(msg.stop.name)}</b></span>${visitButton(msg.stop)}
+      msgHtml = `<span class="nav-msg-text">${TORII} Arrivé à <b>${escHtml(msg.stop.name)}</b></span>${visitButton(msg.stop)}
         <button type="button" class="nav-msg-close" data-nav="dismiss" aria-label="Masquer">✕</button>`;
     } else if (msg) {
       msgKind = msg.kind;

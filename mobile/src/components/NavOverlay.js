@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Nav from '../shared/navcore';
+import Torii from './Torii';
 import { colors, fonts } from '../theme';
 import { fmtDistance, fmtDuration } from '../lib/text';
 
@@ -40,7 +41,7 @@ export default function NavOverlay({ nav, onStop, onRecenter, onVisit, isVisited
   } else if (nav.finished) {
     banner = (
       <View>
-        <Text style={styles.dist}>⛩ Arrivé !</Text>
+        <View style={[styles.row, { gap: 10 }]}><Torii size={30} color="#ffffff" /><Text style={styles.dist}>Arrivé !</Text></View>
         <Text style={styles.instr}>{nav.circuit ? `Circuit terminé : ${nav.arrived.length} sanctuaire${nav.arrived.length > 1 ? 's' : ''}.` : lastArrived?.name}</Text>
       </View>
     );
@@ -48,7 +49,7 @@ export default function NavOverlay({ nav, onStop, onRecenter, onVisit, isVisited
     banner = (
       <View style={styles.row}>
         <View style={styles.arrow}>
-          {m.next.icon === 'arrive' ? <Text style={styles.arriveIcon}>⛩</Text> : <SvgXml xml={arrowXml(m.next.icon)} width={46} height={46} />}
+          {m.next.icon === 'arrive' ? <Torii size={38} color="#ffffff" /> : <SvgXml xml={arrowXml(m.next.icon)} width={46} height={46} />}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.dist}>{Nav.fmtNavDistance(m.distance)}</Text>
@@ -63,7 +64,7 @@ export default function NavOverlay({ nav, onStop, onRecenter, onVisit, isVisited
 
   const visitButton = (s) => (s && !isVisited(s.id) ? (
     <Pressable style={styles.visitBtn} onPress={() => onVisit(s.id)}>
-      <Text style={styles.visitText}>J'y suis allé ⛩</Text>
+      <View style={[styles.row, { gap: 8, justifyContent: 'center' }]}><Text style={styles.visitText}>J'y suis allé</Text><Torii size={18} color="#ffffff" /></View>
     </Pressable>
   ) : s ? <Text style={styles.visitedText}>✓ Déjà dans ta collection</Text> : null);
 
@@ -78,7 +79,7 @@ export default function NavOverlay({ nav, onStop, onRecenter, onVisit, isVisited
 
       {msg?.kind === 'arrive' ? (
         <View style={styles.arriveCard}>
-          <Text style={styles.arriveTitle}>⛩ Tu es arrivé à {msg.stop.name}</Text>
+          <Text style={styles.arriveTitle}>Tu es arrivé à {msg.stop.name}</Text>
           {visitButton(msg.stop)}
           <Pressable onPress={onDismiss}><Text style={styles.next}>Continuer vers l'étape suivante →</Text></Pressable>
         </View>

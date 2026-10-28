@@ -91,7 +91,9 @@
 
   const iconTodo = L.divIcon({ className: 'pin pin-todo', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8] });
   const iconWish = L.divIcon({ className: 'pin pin-wish', html: '<span>★</span>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
-  const iconDone = L.divIcon({ className: 'pin pin-done', html: '<span>⛩</span>', iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
+  // Torii monochrome (prend la couleur du texte) : l'émoji ⛩ s'affiche toujours en rouge.
+  const TORII = '<svg class="torii" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 4.2Q12 6.6 22.5 4.2L21.9 7.1Q12 8.9 2.1 7.1Z"/><rect x="3.6" y="10" width="16.8" height="1.9" rx=".4"/><rect x="5.4" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="16.3" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="11" y="7.8" width="2" height="2.6"/></svg>';
+  const iconDone = L.divIcon({ className: 'pin pin-done', html: `<span>${TORII}</span>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
 
   const cluster = L.markerClusterGroup({
     chunkedLoading: true,
@@ -164,7 +166,7 @@
     const actions = done
       ? `<button class="primary" data-action="card" data-id="${s.id}">Voir ma carte</button>
          <button class="ghost small" data-action="${act('unvisit')}" data-id="${s.id}">Retirer</button>`
-      : `<button class="primary" data-action="${act('visit')}" data-id="${s.id}">J'y suis allé ⛩</button>
+      : `<button class="primary" data-action="${act('visit')}" data-id="${s.id}">J'y suis allé ${TORII}</button>
          <button class="ghost wish-btn${wished ? ' on' : ''}" data-action="${act('wish')}" data-id="${s.id}">${wished ? '★ Retirer' : '☆ À visiter'}</button>`;
     const loginNote = googleToken || !googleClientId ? ''
       : '<div class="popup-login">Connecte-toi avec Google pour collectionner ce sanctuaire.</div>';
@@ -663,7 +665,7 @@
     $('#visited-list').innerHTML = recent.map(({ shrine: s, visit, number }) => `
       <li class="item visited">
         <button class="item-main" data-action="locate" data-id="${s.id}">
-          <span class="item-icon">⛩</span>
+          <span class="item-icon">${TORII}</span>
           <span class="item-text">
             <span class="item-name">${esc(s.name)}</span>
             ${latinName(s) ? `<span class="item-romaji">${esc(latinName(s))}</span>` : ''}
@@ -889,7 +891,7 @@
   const shrineItemHtml = (s) => `
       <li class="item ${isVisited(s.id) ? 'visited' : isWished(s.id) ? 'wished' : ''}">
         <button class="item-main" data-action="locate" data-id="${s.id}">
-          <span class="item-icon">${isVisited(s.id) ? '⛩' : isWished(s.id) ? '★' : '◦'}</span>
+          <span class="item-icon">${isVisited(s.id) ? TORII : isWished(s.id) ? '★' : '◦'}</span>
           <span class="item-text">
             <span class="item-name">${esc(s.name)}</span>
             ${latinName(s) ? `<span class="item-romaji">${esc(latinName(s))}</span>` : ''}
@@ -1471,7 +1473,7 @@
           </form>` : ''}
           <p class="hint">Visible par les autres : amis et « Découvert par ».</p>
         </div>
-        ${mine.length ? `<div class="account-section"><h3>⛩ Visités en premier par toi</h3><ul class="list">${mine.map((s) => `
+        ${mine.length ? `<div class="account-section"><h3>${TORII} Visités en premier par toi</h3><ul class="list">${mine.map((s) => `
           <li class="item"><button class="item-main" data-action="locate" data-id="${s.id}" data-account-close>
             <span class="item-text"><span class="item-name">${esc(s.name)}</span>
             <span class="item-romaji">${esc([latinName(s), prefectureNames.get(s.prefecture)].filter(Boolean).join(' · '))}</span></span>

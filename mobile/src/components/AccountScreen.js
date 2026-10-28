@@ -10,6 +10,7 @@ import { SvgXml } from 'react-native-svg';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { byId, prefectures, useCollection } from '../state/CollectionContext';
 import { latinName } from '../lib/text';
+import Torii from './Torii';
 import { colors, fonts } from '../theme';
 
 const PERSON = (color) => `<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4" fill="${color}"/><path d="M4 21c.6-4.4 3.9-7 8-7s7.4 2.6 8 7z" fill="${color}"/></svg>`;
@@ -192,7 +193,7 @@ function SignedIn({ onSelect }) {
 
       {discovered.length ? (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⛩ Visités en premier par toi</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Torii size={18} color={colors.accentStrong} /><Text style={styles.sectionTitle}>Visités en premier par toi</Text></View>
           {discovered.map((s) => (
             <Pressable key={s.id} style={styles.discovery} onPress={() => onSelect(s.id)}>
               <Text style={styles.discoveryName}>{s.name}</Text>
