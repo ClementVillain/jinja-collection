@@ -67,17 +67,27 @@
       btn.type = 'button';
       btn.title = 'Me localiser';
       btn.textContent = '◎';
-      L.DomEvent.on(btn, 'click', (e) => { L.DomEvent.stop(e); map.locate({ setView: true, maxZoom: 15 }); });
+      L.DomEvent.on(btn, 'click', (e) => { L.DomEvent.stop(e); centerOnLocation = true; map.locate(); });
       return btn;
     },
   });
   map.addControl(new LocateControl());
   let meMarker;
+  let centerOnLocation = false;
   map.on('locationfound', (e) => {
+    // Centrée au-dessus du volet (mobile) plutôt qu'au milieu de l'écran.
+    if (centerOnLocation) {
+      centerOnLocation = false;
+      const zoom = Math.max(map.getZoom(), 15);
+      map.flyTo(centerAbove(e.latlng, zoom, sheetCover()), zoom, { duration: 0.8 });
+    }
     if (meMarker) meMarker.setLatLng(e.latlng);
     else meMarker = L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#2f7cf6', fillOpacity: 1 }).addTo(map);
   });
-  map.on('locationerror', () => alert("Localisation impossible. Autorise l'accès à ta position dans le navigateur."));
+  map.on('locationerror', () => {
+    centerOnLocation = false;
+    alert("Localisation impossible. Autorise l'accès à ta position dans le navigateur.");
+  });
 
   const iconTodo = L.divIcon({ className: 'pin pin-todo', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8] });
   const iconWish = L.divIcon({ className: 'pin pin-wish', html: '<span>★</span>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
@@ -94,13 +104,27 @@
       return L.divIcon({ className: 'cluster', html: `<span>${n >= 1000 ? Math.round(n / 100) / 10 + 'k' : n}</span>`, iconSize: [size, size] });
     },
   });
-  // Les sanctuaires visités ne sont jamais regroupés : ils restent visibles à tout niveau de zoom.
-  const visitedLayer = L.layerGroup();
-  // Idem pour la liste « À visiter » : étoiles dorées toujours visibles.
-  const wishLayer = L.layerGroup();
+  // Visités et « À visiter » : groupes à part, en bulles de leur couleur au dézoom. Leurs bulles
+  // ont leur propre calque, au-dessus des autres marqueurs (les visités tout en haut).
+  map.createPane('wishClusters').style.zIndex = 620;
+  map.createPane('visitedClusters').style.zIndex = 640;
+  const colorGroup = (kind, pane) => L.markerClusterGroup({
+    showCoverageOnHover: false,
+    maxClusterRadius: 45,
+    disableClusteringAtZoom: 13,
+    clusterPane: pane,
+    iconCreateFunction(c) {
+      const n = c.getChildCount();
+      const size = n < 10 ? 32 : n < 100 ? 38 : 46;
+      return L.divIcon({ className: `cluster cluster-${kind}`, html: `<span>${n >= 1000 ? Math.round(n / 100) / 10 + 'k' : n}</span>`, iconSize: [size, size] });
+    },
+  });
+  const visitedLayer = colorGroup('done', 'visitedClusters');
+  const wishLayer = colorGroup('wish', 'wishClusters');
   map.addLayer(cluster);
   map.addLayer(wishLayer);
   map.addLayer(visitedLayer);
+  const groupOf = (id) => (isVisited(id) ? visitedLayer : isWished(id) ? wishLayer : cluster);
 
   function makeMarker(s) {
     const m = L.marker([s.lat, s.lon], { icon: isVisited(s.id) ? iconDone : isWished(s.id) ? iconWish : iconTodo, title: s.name });
@@ -495,19 +519,26 @@
     if (!m.isPopupOpen()) m.openPopup();
   }
 
+  // Centre à donner à la carte pour que le point soit au milieu de la zone visible au-dessus
+  // du volet (mobile) : décalé vers le bas de la moitié de la hauteur cachée.
+  function centerAbove(latlng, zoom, cover) {
+    if (!cover) return L.latLng(latlng);
+    return map.unproject(map.project(latlng, zoom).add([0, cover / 2]), zoom);
+  }
+
   function focusShrine(id, zoom = 16) {
     const s = byId.get(id);
     const m = markers.get(id);
     if (!s || !m) return;
-    if (window.matchMedia('(max-width: 760px)').matches) setCollapsed(true);
-    if (isVisited(id) || isWished(id)) {
-      // Déjà centrée dessus : la carte ne bougerait pas et « moveend » n'arriverait jamais.
-      if (map.getZoom() >= zoom && map.getCenter().distanceTo([s.lat, s.lon]) < 20) { openShrinePopup(m); return; }
-      map.once('moveend', () => openShrinePopup(m));
-      map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), zoom), { duration: 0.8 });
-    } else {
-      cluster.zoomToShowLayer(m, () => openShrinePopup(m));
-    }
+    if (isMobile()) setCollapsed(true);
+    const z = Math.max(map.getZoom(), zoom);
+    const center = centerAbove([s.lat, s.lon], z, sheetCover());
+    // Point peut-être encore dans une bulle : zoomToShowLayer l'en sort avant d'ouvrir la popup.
+    const open = () => groupOf(id).zoomToShowLayer(m, () => openShrinePopup(m));
+    // Déjà centrée dessus : la carte ne bougerait pas et « moveend » n'arriverait jamais.
+    if (map.getZoom() >= zoom && map.getCenter().distanceTo(center) < 20) { open(); return; }
+    map.once('moveend', open);
+    map.flyTo(center, z, { duration: 0.8 });
   }
 
   // ---------- Actions ----------
@@ -593,7 +624,7 @@
     saveVisits();
     placeMarker(id);
     refreshPanels();
-    if (wasOpen) m.openPopup();
+    if (wasOpen) groupOf(id).zoomToShowLayer(m, () => m.openPopup());
   }
 
   document.addEventListener('click', (e) => {
@@ -755,7 +786,7 @@
       const marker = L.marker([p.lat, p.lon], { icon, zIndexOffset: 2000, title: p.me ? 'Ma position' : p.name }).addTo(routeLayer);
       if (!p.me) marker.on('click', () => focusShrine(p.id));
     }
-    map.fitBounds(L.geoJSON(result.geometry).getBounds(), { padding: [40, 40] });
+    map.fitBounds(L.geoJSON(result.geometry).getBounds(), { paddingTopLeft: [40, 40], paddingBottomRight: [40, 40 + sheetCover()] });
   }
 
   function currentPosition() {
@@ -779,8 +810,8 @@
       const points = routeFromMe ? [await currentPosition(), ...stops] : stops;
       const result = await JinjaRoute.plan(points, { mode: routeMode, fixedStart: routeFromMe });
       routeState = { busy: false, error: '', result: { ...result, mode: routeMode, fromMe: routeFromMe } };
-      drawRoute(routeState.result);
       if (isMobile()) setCollapsed(true);
+      drawRoute(routeState.result);
     } catch (err) {
       routeState = { busy: false, error: 'Circuit impossible : ' + err.message, result: null };
     }
@@ -847,19 +878,15 @@
   // Ignore casse, accents, espaces et tirets : « fushimi inari taisha » trouve « Fushimi Inari-taisha ».
   const normalize = (str) => str.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[\s\-_'’.・]/g, '');
   let searchTimer;
-  $('#search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(renderSearch, 150); });
+  $('#search').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderSearch, 150);
+    if (cityView) closeCity();
+    scheduleCitySearch();
+  });
 
-  function renderSearch() {
-    const q = normalize($('#search').value.trim());
-    const list = $('#search-results');
-    $('#search-hint').hidden = !!q;
-    if (!q) { list.innerHTML = ''; return; }
-    const results = [];
-    for (const s of shrines) {
-      if (s.search.includes(q)) { results.push(s); if (results.length >= 60) break; }
-    }
-    list.innerHTML = results.length ? results.map((s) => `
-      <li class="item ${isVisited(s.id) ? 'visited' : ''}">
+  const shrineItemHtml = (s) => `
+      <li class="item ${isVisited(s.id) ? 'visited' : isWished(s.id) ? 'wished' : ''}">
         <button class="item-main" data-action="locate" data-id="${s.id}">
           <span class="item-icon">${isVisited(s.id) ? '⛩' : isWished(s.id) ? '★' : '◦'}</span>
           <span class="item-text">
@@ -868,8 +895,118 @@
             ${isVisited(s.id) ? '<span class="item-sub">visité ✓</span>' : ''}
           </span>
         </button>
-      </li>`).join('') : '<li class="hint">Aucun sanctuaire trouvé.</li>';
+      </li>`;
+
+  function renderSearch() {
+    const q = normalize($('#search').value.trim());
+    const list = $('#search-results');
+    $('#search-hint').hidden = !!q || !!cityView;
+    if (cityView) renderCityView();
+    if (!q) { list.innerHTML = ''; return; }
+    const results = [];
+    for (const s of shrines) {
+      if (s.search.includes(q)) { results.push(s); if (results.length >= 60) break; }
+    }
+    list.innerHTML = results.length ? results.map(shrineItemHtml).join('') : '<li class="hint">Aucun sanctuaire de ce nom.</li>';
   }
+
+  // ---------- Recherche par ville (geo.js : Nominatim, puis sanctuaires dans le contour) ----------
+  // Nominatim demande au plus 1 requête par seconde : on attend une pause de saisie.
+  let cityTimer;
+  let cityState = { query: '', status: 'idle', places: [], error: '' };
+  let cityView = null; // ville ouverte (liste de ses sanctuaires)
+  let citySort = 'todo'; // 'todo' : non visités d'abord ; 'name' : par nom
+  const placeShrines = new WeakMap();
+  function shrinesOfPlace(place) {
+    if (!placeShrines.has(place)) placeShrines.set(place, JinjaGeo.shrinesIn(place, shrines));
+    return placeShrines.get(place);
+  }
+
+  function scheduleCitySearch() {
+    clearTimeout(cityTimer);
+    const query = $('#search').value.trim();
+    if (!JinjaGeo.isCityQuery(query)) { cityState = { query, status: 'idle', places: [], error: '' }; renderCities(); return; }
+    const cached = JinjaGeo.cached(query);
+    if (cached) { showPlaces(query, cached); return; }
+    cityTimer = setTimeout(async () => {
+      cityState = { query, status: 'loading', places: [], error: '' };
+      renderCities();
+      try {
+        showPlaces(query, await JinjaGeo.findPlaces(query));
+      } catch (err) {
+        if ($('#search').value.trim() !== query) return;
+        cityState = { query, status: 'error', places: [], error: err.message };
+        renderCities();
+      }
+    }, 600);
+  }
+
+  function showPlaces(query, places) {
+    if ($('#search').value.trim() !== query) return; // saisie modifiée entre-temps
+    cityState = { query, status: 'done', places: places.filter((p) => shrinesOfPlace(p).length), error: '' };
+    renderCities();
+  }
+
+  function renderCities() {
+    const { status, places, error } = cityState;
+    const count = (n) => `${n.toLocaleString('fr-FR')} sanctuaire${n > 1 ? 's' : ''}`;
+    $('#city-results').innerHTML = status === 'loading' ? '<li class="hint city-status">Recherche de villes…</li>'
+      : status === 'error' ? `<li class="hint city-error">Recherche par ville impossible : ${esc(error)}. Vérifie ta connexion et réessaie.</li>`
+        : places.map((p, i) => `
+      <li class="item city">
+        <button class="item-main" data-city="${i}">
+          <span class="item-icon">🏙</span>
+          <span class="item-text">
+            <span class="item-name">${esc(p.label)} — ${count(shrinesOfPlace(p).length)}</span>
+            ${p.region ? `<span class="item-sub">${esc(p.region)}</span>` : ''}
+          </span>
+        </button>
+      </li>`).join('');
+  }
+
+  function openCity(place) {
+    if (!place) return;
+    cityView = place;
+    renderCityView();
+    $('#tab-explore').scrollTop = 0;
+    const [w, s, e, n] = place.bbox;
+    const cover = sheetCover();
+    map.fitBounds([[s, w], [n, e]], { paddingTopLeft: [20, 20], paddingBottomRight: [20, 20 + cover] });
+  }
+
+  function closeCity() {
+    cityView = null;
+    renderCityView();
+    $('#search-hint').hidden = !!$('#search').value.trim();
+  }
+
+  function renderCityView() {
+    const view = $('#city-view');
+    view.hidden = !cityView;
+    $('#city-results').hidden = $('#search-results').hidden = !!cityView;
+    if (!cityView) { view.innerHTML = ''; return; }
+    $('#search-hint').hidden = true;
+    const byName = (a, b) => a.name.localeCompare(b.name, 'ja');
+    const list = [...shrinesOfPlace(cityView)]
+      .sort(citySort === 'name' ? byName : (a, b) => isVisited(a.id) - isVisited(b.id) || byName(a, b));
+    const done = list.filter((s) => isVisited(s.id)).length;
+    view.innerHTML = `
+      <button type="button" class="link-btn city-back" data-city-back>← Retour à la recherche</button>
+      <h2 class="city-title">🏙 ${esc(cityView.label)}</h2>
+      <p class="city-meta">${cityView.region ? esc(cityView.region) + ' · ' : ''}${list.length.toLocaleString('fr-FR')} sanctuaire${list.length > 1 ? 's' : ''} · ${done} visité${done > 1 ? 's' : ''}</p>
+      <div class="route-modes city-sort">
+        <button type="button" data-city-sort="todo" class="${citySort === 'todo' ? 'on' : ''}">Non visités d'abord</button>
+        <button type="button" data-city-sort="name" class="${citySort === 'name' ? 'on' : ''}">Par nom</button>
+      </div>
+      <ul class="list">${list.map(shrineItemHtml).join('')}</ul>`;
+  }
+
+  $('#tab-explore').addEventListener('click', (e) => {
+    const city = e.target.closest('[data-city]');
+    if (city) openCity(cityState.places[+city.dataset.city]);
+    else if (e.target.closest('[data-city-back]')) closeCity();
+    else if (e.target.closest('[data-city-sort]')) { citySort = e.target.closest('[data-city-sort]').dataset.citySort; renderCityView(); }
+  });
 
   // ---------- Carte postale ----------
   // Crédit affiché sur la carte, en texte simple.
@@ -1367,6 +1504,13 @@
     return { collapsed: peek, half: vh * 0.64, full: vh - 10 };
   }
 
+  // Hauteur de carte cachée par le volet (mobile) ; en plein écran, il repasse à moitié pour la montrer.
+  function sheetCover() {
+    if (!isMobile()) return 0;
+    if (sheetState() === 'full') setSheet('half');
+    return sheetHeights()[sheetState()];
+  }
+
   let drag = null;
   $('.sheet-grab').addEventListener('pointerdown', (e) => {
     if (!isMobile()) return;
@@ -1412,14 +1556,16 @@
         id, name, nameLatin, lat, lon, photo, romaji, search: normalize(`${name} ${nameLatin} ${romaji}`),
       }));
       shrines.forEach((s) => byId.set(s.id, s));
-      const todo = [];
+      const todo = [], done = [], wished = [];
       for (const s of shrines) {
         const m = makeMarker(s);
-        if (isVisited(s.id)) visitedLayer.addLayer(m.setZIndexOffset(1000));
-        else if (isWished(s.id)) wishLayer.addLayer(m.setZIndexOffset(500));
+        if (isVisited(s.id)) done.push(m.setZIndexOffset(1000));
+        else if (isWished(s.id)) wished.push(m.setZIndexOffset(500));
         else todo.push(m);
       }
       cluster.addLayers(todo);
+      wishLayer.addLayers(wished);
+      visitedLayer.addLayers(done);
       refreshPanels();
     })
     .catch((err) => {

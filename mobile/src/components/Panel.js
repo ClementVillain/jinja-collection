@@ -1,10 +1,11 @@
 // Panneau principal (volet du bas) : compte Google, progression, et onglets Explorer,
 // À visiter (avec le circuit), Visités et Collection.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import * as Location from 'expo-location';
 import JinjaRoute from '../shared/route';
+import JinjaGeo from '../shared/geo';
 import { Postcard, useCoverPhoto } from './PostcardModal';
 import Friends from './Friends';
 import { shrines, byId, useCollection } from '../state/CollectionContext';
@@ -15,6 +16,38 @@ const SEARCH_INDEX = shrines.map((s) => ({ s, key: normalize(`${s.name} ${s.name
 // Pas d'onglet « Visités » : la Collection montre déjà chaque sanctuaire visité (avec son compteur).
 const TABS = [['explore', 'Explorer'], ['wish', 'À visiter'], ['collection', 'Collection'], ['friends', 'Amis']];
 const MAX_ROUTE_STOPS = 25;
+// Nominatim demande une identification explicite de l'application.
+const NOMINATIM_HEADERS = { 'User-Agent': 'JinjaCollection/1.0 (https://jinja-collection.vercel.app)' };
+const CITY_PAGE = 200;
+
+// Sanctuaires d'une ville, calculés une fois par lieu (les lieux sont gardés en cache par geo.js).
+const placeShrines = new WeakMap();
+function shrinesOfPlace(place) {
+  if (!placeShrines.has(place)) placeShrines.set(place, JinjaGeo.shrinesIn(place, shrines));
+  return placeShrines.get(place);
+}
+const countLabel = (n) => `${n.toLocaleString('fr-FR')} sanctuaire${n > 1 ? 's' : ''}`;
+
+// Villes correspondant à la saisie : Nominatim (1 requête/s au plus) après une pause de 600 ms.
+function useCityPlaces(query) {
+  const [state, setState] = useState({ status: 'idle', places: [], error: '' });
+  useEffect(() => {
+    const q = query.trim();
+    if (!JinjaGeo.isCityQuery(q)) { setState({ status: 'idle', places: [], error: '' }); return undefined; }
+    const keep = (places) => places.filter((p) => shrinesOfPlace(p).length);
+    const cached = JinjaGeo.cached(q);
+    if (cached) { setState({ status: 'done', places: keep(cached), error: '' }); return undefined; }
+    let alive = true;
+    const timer = setTimeout(() => {
+      setState({ status: 'loading', places: [], error: '' });
+      JinjaGeo.findPlaces(q, { headers: NOMINATIM_HEADERS })
+        .then((places) => { if (alive) setState({ status: 'done', places: keep(places), error: '' }); })
+        .catch((err) => { if (alive) setState({ status: 'error', places: [], error: err.message }); });
+    }, 600);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [query]);
+  return state;
+}
 
 function Item({ s, icon, iconStyle, sub, right, onPress }) {
   const iconColor = iconStyle === styles.iconVisited ? '#fff' : iconStyle === styles.iconWish ? colors.gold : null;
@@ -30,6 +63,48 @@ function Item({ s, icon, iconStyle, sub, right, onPress }) {
         </View>
       </Pressable>
       {right}
+    </View>
+  );
+}
+
+function ShrineItem({ s, onSelect }) {
+  const c = useCollection();
+  return (
+    <Item s={s} onPress={() => onSelect(s.id)}
+      icon={c.isVisited(s.id) ? '⛩' : c.isWished(s.id) ? '★' : '◦'}
+      iconStyle={c.isVisited(s.id) ? styles.iconVisited : c.isWished(s.id) ? styles.iconWish : null}
+      sub={c.isVisited(s.id) ? 'visité ✓' : null} />
+  );
+}
+
+// Liste des sanctuaires d'une ville, avec retour à la recherche.
+function CityView({ place, onBack, onSelect }) {
+  const c = useCollection();
+  const [sort, setSort] = useState('todo');
+  const [limit, setLimit] = useState(CITY_PAGE);
+  const list = useMemo(() => {
+    const byName = (a, b) => a.name.localeCompare(b.name, 'ja');
+    return [...shrinesOfPlace(place)].sort(sort === 'name' ? byName : (a, b) => !!c.visits[a.id] - !!c.visits[b.id] || byName(a, b));
+  }, [place, sort, c.visits]);
+  const done = list.filter((s) => c.visits[s.id]).length;
+  return (
+    <View>
+      <Pressable onPress={onBack} hitSlop={8}><Text style={styles.back}>← Retour à la recherche</Text></Pressable>
+      <Text style={styles.cityTitle}>🏙 {place.label}</Text>
+      <Text style={styles.cityMeta}>{place.region ? `${place.region} · ` : ''}{countLabel(list.length)} · {done} visité{done > 1 ? 's' : ''}</Text>
+      <View style={[styles.modes, { alignSelf: 'flex-start', marginBottom: 6 }]}>
+        {[['todo', 'Non visités d’abord'], ['name', 'Par nom']].map(([k, label]) => (
+          <Pressable key={k} style={[styles.mode, sort === k && styles.modeOn]} onPress={() => setSort(k)}>
+            <Text style={[styles.modeText, sort === k && { color: colors.ink }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {list.slice(0, limit).map((s) => <ShrineItem key={s.id} s={s} onSelect={onSelect} />)}
+      {list.length > limit ? (
+        <Pressable style={[styles.smallBtn, { alignSelf: 'center', marginTop: 10 }]} onPress={() => setLimit((n) => n + CITY_PAGE)}>
+          <Text style={styles.smallBtnText}>Afficher plus ({list.length - limit} restants)</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -166,10 +241,13 @@ function RouteBox({ items, excluded, route, setRoute, onStart, onFocusRoute, sim
   );
 }
 
-export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCircuit, onFocusRoute, simulate, setSimulate }) {
+export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCircuit, onFocusRoute, onFocusPlace, search, setSearch, simulate, setSimulate }) {
   const c = useCollection();
   const [tab, setTab] = useState('explore');
-  const [query, setQuery] = useState('');
+  // Recherche gardée par App : le panneau est démonté pendant qu'une fiche est ouverte.
+  const { query, city } = search;
+  const setQuery = (q) => setSearch({ query: q, city: null });
+  const cities = useCityPlaces(query);
   const [excluded, setExcluded] = useState(() => new Set());
   const width = Dimensions.get('window').width;
   const cardW = (width - 16 * 2 - 10) / 2;
@@ -216,16 +294,28 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
             <Account />
             <BottomSheetTextInput
               style={styles.search} value={query} onChangeText={setQuery} clearButtonMode="while-editing"
-              placeholder="Rechercher un sanctuaire (伏見稲荷, hakusan…)" placeholderTextColor={colors.muted} autoCorrect={false}
+              placeholder="Sanctuaire ou ville (伏見稲荷, hakusan, Kyoto…)" placeholderTextColor={colors.muted} autoCorrect={false}
             />
-            {query && !results.length ? <Text style={styles.hint}>Aucun sanctuaire trouvé.</Text> : null}
-            {!query ? <Text style={styles.hint}>Touche un point de la carte, ou cherche un sanctuaire par son nom.</Text> : null}
-            {results.map((s) => (
-              <Item key={s.id} s={s} onPress={() => onSelect(s.id)}
-                icon={c.isVisited(s.id) ? '⛩' : c.isWished(s.id) ? '★' : '◦'}
-                iconStyle={c.isVisited(s.id) ? styles.iconVisited : c.isWished(s.id) ? styles.iconWish : null}
-                sub={c.isVisited(s.id) ? 'visité ✓' : null} />
-            ))}
+            {city ? <CityView place={city} onBack={() => setSearch({ query, city: null })} onSelect={onSelect} /> : (
+              <>
+                {cities.status === 'loading' ? <Text style={styles.hint}>Recherche de villes…</Text> : null}
+                {cities.status === 'error' ? <Text style={styles.error}>Recherche par ville impossible : {cities.error}. Vérifie ta connexion et réessaie.</Text> : null}
+                {cities.places.map((p) => (
+                  <Pressable key={p.key} style={styles.item} onPress={() => { setSearch({ query, city: p }); onFocusPlace(p); }}>
+                    <View style={styles.itemMain}>
+                      <View style={styles.itemIcon}><Text style={{ fontSize: 15 }}>🏙</Text></View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.itemName} numberOfLines={2}>{p.label} — {countLabel(shrinesOfPlace(p).length)}</Text>
+                        {p.region ? <Text style={styles.itemSub} numberOfLines={1}>{p.region}</Text> : null}
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+                {query && !results.length ? <Text style={styles.hint}>Aucun sanctuaire de ce nom.</Text> : null}
+                {!query ? <Text style={styles.hint}>Touche un point de la carte, ou cherche un sanctuaire par son nom ou par sa ville.</Text> : null}
+                {results.map((s) => <ShrineItem key={s.id} s={s} onSelect={onSelect} />)}
+              </>
+            )}
             {__DEV__ ? (
               <View style={[styles.option, { marginTop: 18 }]}>
                 <Switch value={simulate} onValueChange={setSimulate} trackColor={{ true: colors.vermilion }} />
@@ -333,5 +423,8 @@ const styles = StyleSheet.create({
   stepNumText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   stepName: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 14, color: colors.ink },
   stepLeg: { fontSize: 11, color: colors.muted },
+  back: { color: colors.vermilion, fontSize: 13, textDecorationLine: 'underline', marginTop: 4, marginBottom: 6 },
+  cityTitle: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 19, color: colors.ink },
+  cityMeta: { fontSize: 12, color: colors.muted, marginTop: 2, marginBottom: 8 },
   routeActions: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
 });
