@@ -67,17 +67,27 @@
       btn.type = 'button';
       btn.title = 'Me localiser';
       btn.textContent = '◎';
-      L.DomEvent.on(btn, 'click', (e) => { L.DomEvent.stop(e); map.locate({ setView: true, maxZoom: 15 }); });
+      L.DomEvent.on(btn, 'click', (e) => { L.DomEvent.stop(e); centerOnLocation = true; map.locate(); });
       return btn;
     },
   });
   map.addControl(new LocateControl());
   let meMarker;
+  let centerOnLocation = false;
   map.on('locationfound', (e) => {
+    // Centrée au-dessus du volet (mobile) plutôt qu'au milieu de l'écran.
+    if (centerOnLocation) {
+      centerOnLocation = false;
+      const zoom = Math.max(map.getZoom(), 15);
+      map.flyTo(centerAbove(e.latlng, zoom, sheetCover()), zoom, { duration: 0.8 });
+    }
     if (meMarker) meMarker.setLatLng(e.latlng);
     else meMarker = L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#2f7cf6', fillOpacity: 1 }).addTo(map);
   });
-  map.on('locationerror', () => alert("Localisation impossible. Autorise l'accès à ta position dans le navigateur."));
+  map.on('locationerror', () => {
+    centerOnLocation = false;
+    alert("Localisation impossible. Autorise l'accès à ta position dans le navigateur.");
+  });
 
   const iconTodo = L.divIcon({ className: 'pin pin-todo', html: '<span></span>', iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -8] });
   const iconWish = L.divIcon({ className: 'pin pin-wish', html: '<span>★</span>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
@@ -495,19 +505,25 @@
     if (!m.isPopupOpen()) m.openPopup();
   }
 
+  // Centre à donner à la carte pour que le point soit au milieu de la zone visible au-dessus
+  // du volet (mobile) : décalé vers le bas de la moitié de la hauteur cachée.
+  function centerAbove(latlng, zoom, cover) {
+    if (!cover) return L.latLng(latlng);
+    return map.unproject(map.project(latlng, zoom).add([0, cover / 2]), zoom);
+  }
+
   function focusShrine(id, zoom = 16) {
     const s = byId.get(id);
     const m = markers.get(id);
     if (!s || !m) return;
-    if (window.matchMedia('(max-width: 760px)').matches) setCollapsed(true);
-    if (isVisited(id) || isWished(id)) {
-      // Déjà centrée dessus : la carte ne bougerait pas et « moveend » n'arriverait jamais.
-      if (map.getZoom() >= zoom && map.getCenter().distanceTo([s.lat, s.lon]) < 20) { openShrinePopup(m); return; }
-      map.once('moveend', () => openShrinePopup(m));
-      map.flyTo([s.lat, s.lon], Math.max(map.getZoom(), zoom), { duration: 0.8 });
-    } else {
-      cluster.zoomToShowLayer(m, () => openShrinePopup(m));
-    }
+    if (isMobile()) setCollapsed(true);
+    const z = Math.max(map.getZoom(), zoom);
+    const center = centerAbove([s.lat, s.lon], z, sheetCover());
+    const open = () => (cluster.hasLayer(m) ? cluster.zoomToShowLayer(m, () => openShrinePopup(m)) : openShrinePopup(m));
+    // Déjà centrée dessus : la carte ne bougerait pas et « moveend » n'arriverait jamais.
+    if (map.getZoom() >= zoom && map.getCenter().distanceTo(center) < 20) { open(); return; }
+    map.once('moveend', open);
+    map.flyTo(center, z, { duration: 0.8 });
   }
 
   // ---------- Actions ----------
@@ -755,7 +771,7 @@
       const marker = L.marker([p.lat, p.lon], { icon, zIndexOffset: 2000, title: p.me ? 'Ma position' : p.name }).addTo(routeLayer);
       if (!p.me) marker.on('click', () => focusShrine(p.id));
     }
-    map.fitBounds(L.geoJSON(result.geometry).getBounds(), { padding: [40, 40] });
+    map.fitBounds(L.geoJSON(result.geometry).getBounds(), { paddingTopLeft: [40, 40], paddingBottomRight: [40, 40 + sheetCover()] });
   }
 
   function currentPosition() {
@@ -779,8 +795,8 @@
       const points = routeFromMe ? [await currentPosition(), ...stops] : stops;
       const result = await JinjaRoute.plan(points, { mode: routeMode, fixedStart: routeFromMe });
       routeState = { busy: false, error: '', result: { ...result, mode: routeMode, fromMe: routeFromMe } };
-      drawRoute(routeState.result);
       if (isMobile()) setCollapsed(true);
+      drawRoute(routeState.result);
     } catch (err) {
       routeState = { busy: false, error: 'Circuit impossible : ' + err.message, result: null };
     }

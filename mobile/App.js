@@ -44,13 +44,32 @@ function Main() {
     onGps: c.recordSighting,
   });
 
+  // Hauteur d'écran couverte par le volet dans chaque position (snapPoints en points).
+  const sheetHeight = useCallback((index) => [96 + insets.bottom, height * 0.52, height * 0.94][index] ?? 0, [insets.bottom, height]);
+  // Le volet plein écran cache la carte : on le passe à moitié avant de centrer. Renvoie la position visée.
+  const revealMap = useCallback((min = SNAP.collapsed) => {
+    let index = sheetIndex.current;
+    if (index === SNAP.full || index < min) {
+      index = index === SNAP.full ? SNAP.half : min;
+      sheet.current?.snapToIndex(index);
+    }
+    return index;
+  }, []);
+  // Marges de caméra : le point visé se place dans la zone visible au-dessus du volet, un peu plus
+  // haut que son milieu (la marge du bas compte 20 % de cette zone en plus).
+  const centerPadding = useCallback((index) => {
+    const bottom = sheetHeight(index);
+    return { top: insets.top, bottom: bottom + (height - insets.top - bottom) * 0.2, left: 0, right: 0 };
+  }, [sheetHeight, insets.top, height]);
+  // Pour cadrer un ensemble (circuit, ville) : marges autour de la zone visible.
+  const fitPadding = useCallback((index) => ({ top: insets.top + 60, bottom: sheetHeight(index) + 30, left: 40, right: 40 }), [sheetHeight, insets.top]);
+
   const select = useCallback((id) => {
     const s = byId.get(id);
     if (!s) return;
     setSelectedId(id);
-    map.current?.flyTo(s.lat, s.lon, 15);
-    if (sheetIndex.current === SNAP.collapsed) sheet.current?.snapToIndex(SNAP.half);
-  }, []);
+    map.current?.flyTo(s.lat, s.lon, 15, centerPadding(revealMap(SNAP.half)));
+  }, [centerPadding, revealMap]);
 
   const locate = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -58,7 +77,7 @@ function Main() {
     setShowUser(true);
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
     c.recordSighting({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy });
-    map.current?.flyTo(pos.coords.latitude, pos.coords.longitude, 14);
+    map.current?.flyTo(pos.coords.latitude, pos.coords.longitude, 14, centerPadding(revealMap()));
   };
 
   const navigateTo = (s) => {
@@ -85,6 +104,7 @@ function Main() {
         nav={nav}
         showUser={showUser}
         onUserPan={() => { if (nav) setFollowing(false); }}
+        getPadding={() => centerPadding(nav ? -1 : sheetIndex.current)}
       />
 
       {!nav ? (
@@ -120,13 +140,12 @@ function Main() {
             onOpenCard={(id) => setCard({ id, isNew: false })}
             route={route}
             setRoute={setRoute}
-            onFocusRoute={(r) => { map.current?.fitCoords(r.geometry.coordinates); sheet.current?.snapToIndex(SNAP.collapsed); }}
+            onFocusRoute={(r) => { sheet.current?.snapToIndex(SNAP.collapsed); map.current?.fitCoords(r.geometry.coordinates, fitPadding(SNAP.collapsed)); }}
             onStartCircuit={startCircuit}
             onFocusPlace={(p) => {
               // La liste de la ville reste visible : on cadre la carte au-dessus du volet à moitié.
               const [w, s, e, n] = p.bbox;
-              if (sheetIndex.current === SNAP.full) sheet.current?.snapToIndex(SNAP.half);
-              map.current?.fitCoords([[w, s], [e, n]], { top: insets.top + 20, bottom: height * 0.52 + 20, left: 20, right: 20 });
+              map.current?.fitCoords([[w, s], [e, n]], fitPadding(revealMap(SNAP.half)));
             }}
             search={search}
             setSearch={setSearch}

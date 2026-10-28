@@ -24,13 +24,14 @@ const collection = (features) => ({ type: 'FeatureCollection', features });
 const ALL = collection(shrines.map((s) => point(s)));
 
 const ShrineMap = forwardRef(function ShrineMap({
-  visits, wishlist, selectedId, onSelect, route, nav, showUser, onUserPan,
+  visits, wishlist, selectedId, onSelect, route, nav, showUser, onUserPan, getPadding,
 }, ref) {
   const camera = useRef(null);
   const source = useRef(null);
 
   useImperativeHandle(ref, () => ({
-    flyTo(lat, lon, zoom = 15) { camera.current?.flyTo({ center: [lon, lat], zoom, duration: 900 }); },
+    // padding : zone de la carte à viser (le volet du bas couvre une partie de l'écran).
+    flyTo(lat, lon, zoom = 15, padding = getPadding?.()) { camera.current?.flyTo({ center: [lon, lat], zoom, padding, duration: 900 }); },
     easeTo(lat, lon, zoom) { camera.current?.easeTo({ center: [lon, lat], ...(zoom ? { zoom } : {}), duration: 600 }); },
     fitCoords(coords, padding = { top: 80, bottom: 260, left: 40, right: 40 }) {
       if (!coords?.length) return;
@@ -59,7 +60,7 @@ const ShrineMap = forwardRef(function ShrineMap({
     if (!f) return;
     if (f.properties?.cluster) {
       const zoom = await source.current?.getClusterExpansionZoom(f.properties.cluster_id).catch(() => null);
-      camera.current?.easeTo({ center: f.geometry.coordinates, zoom: Math.min((zoom ?? 10) + 0.5, 16), duration: 500 });
+      camera.current?.easeTo({ center: f.geometry.coordinates, zoom: Math.min((zoom ?? 10) + 0.5, 16), padding: getPadding?.(), duration: 500 });
       return;
     }
     if (f.properties?.id) onSelect(f.properties.id);
