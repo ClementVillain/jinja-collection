@@ -17,7 +17,8 @@ export const colors = {
 };
 
 // Polices système proches de celles du site (Shippori Mincho / Zen Kaku Gothic).
+// Roboto partout (voir components/Text.js) ; les kanji passent par la police japonaise d'iOS.
 export const fonts = {
-  serif: 'Hiragino Mincho ProN',
+  serif: undefined,
   sans: undefined,
 };

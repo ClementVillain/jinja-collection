@@ -2,7 +2,8 @@
 // et romaji, « J'y suis allé » / « À visiter », « Y aller », lien Google Maps, et partage
 // d'une photo prise sur place.
 import { useEffect, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Dimensions, FlatList, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Dimensions, FlatList, Image, Linking, Pressable, StyleSheet, View } from 'react-native';
+import Text from './Text';
 import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';

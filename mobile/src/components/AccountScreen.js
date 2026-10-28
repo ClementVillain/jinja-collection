@@ -3,7 +3,8 @@
 // Connecté : grand avatar, nom, « Membre depuis… », statistiques, nom public et amis,
 // sanctuaires découverts en premier.
 import { useMemo, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Image, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
+import Text, { roboto } from './Text';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { SvgXml } from 'react-native-svg';
@@ -43,7 +44,7 @@ function UsernameForm({ onDone }) {
     <View style={nameStyles.nameForm}>
       <Text style={nameStyles.nameLabel}>{c.username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <Text style={{ color: colors.muted }}>(visible par les autres : amis, « Découvert par »)</Text></Text>
       <View style={nameStyles.nameRow}>
-        <BottomSheetTextInput style={[nameStyles.search, { flex: 1, marginBottom: 0 }]} value={value} onChangeText={setValue} autoCapitalize="none" autoCorrect={false}
+        <BottomSheetTextInput style={roboto([nameStyles.search, { flex: 1, marginBottom: 0 }])} value={value} onChangeText={setValue} autoCapitalize="none" autoCorrect={false}
           placeholder="ex : kitsune_77" placeholderTextColor={colors.muted} maxLength={20} onSubmitEditing={submit} />
         <Pressable style={[nameStyles.goBtn, { paddingHorizontal: 16 }, busy && { opacity: 0.5 }]} disabled={busy} onPress={submit}><Text style={nameStyles.goText}>OK</Text></Pressable>
       </View>

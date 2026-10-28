@@ -1,6 +1,7 @@
 // Bandeau de navigation : prochaine manœuvre en grand en haut, arrivée prévue et distance
 // restante en bas, bouton pour recentrer, et carte d'arrivée avec « J'y suis allé ⛩ ».
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import Text from './Text';
 import { SvgXml } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Nav from '../shared/navcore';

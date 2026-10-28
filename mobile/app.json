@@ -40,6 +40,16 @@
           "cameraPermission": "Jinja Collection a besoin de l'appareil photo pour que tu photographies un sanctuaire.",
           "microphonePermission": false
         }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/roboto/400Regular/Roboto_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/roboto/500Medium/Roboto_500Medium.ttf",
+            "./node_modules/@expo-google-fonts/roboto/700Bold/Roboto_700Bold.ttf"
+          ]
+        }
       ]
     ],
     "extra": {

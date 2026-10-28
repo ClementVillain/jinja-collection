@@ -12,12 +12,14 @@
   --paper-2: #eef5f1;
   --line: #d7e7dd;
   --panel-w: 380px;
+  /* Roboto ; les kanji (absents de Roboto) passent par la police japonaise du système. */
+  --font: 'Roboto', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  font-family: 'Zen Kaku Gothic New', system-ui, sans-serif;
+  font-family: var(--font);
   color: var(--ink);
   background: var(--paper);
   display: flex;
@@ -57,7 +59,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
   display: grid; place-items: center;
   background: var(--accent-strong); color: #fff; font-size: 24px;
 }
-.brand h1 { font-family: 'Shippori Mincho', serif; font-size: 22px; margin: 0; letter-spacing: 0.02em; }
+.brand h1 { font-family: var(--font); font-size: 22px; margin: 0; letter-spacing: 0.02em; }
 .brand p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
 .progress-bar { height: 4px; margin: 4px 20px 12px; background: var(--paper-2); border-radius: 4px; overflow: hidden; }
 #progress-fill { height: 100%; width: 0; background: var(--accent); transition: width 0.4s; }
@@ -124,7 +126,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .route-box { margin-bottom: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
 .route-box[hidden] { display: none; }
 .route-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.route-head strong { font-family: 'Shippori Mincho', serif; font-size: 16px; }
+.route-head strong { font-family: var(--font); font-size: 16px; }
 .route-modes { display: flex; padding: 2px; border-radius: 8px; background: var(--paper-2); }
 .route-modes button { border: 0; background: none; padding: 4px 8px; border-radius: 6px; font-size: 12px; color: var(--muted); }
 .route-modes button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
@@ -137,7 +139,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .route-steps { list-style: none; margin: 0; padding: 0; }
 .route-steps li { display: grid; grid-template-columns: 24px 1fr; column-gap: 8px; align-items: center; padding: 3px 0; }
 .route-num { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent-strong); color: #fff; font-size: 11px; font-weight: 700; }
-.route-step-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 14px; }
+.route-step-name { font-family: var(--font); font-weight: 700; font-size: 14px; }
 .route-leg { grid-column: 2; font-size: 11px; color: var(--muted); }
 .route-actions { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
 .route-gmaps { text-decoration: none; }
@@ -156,7 +158,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .item.wished .item-icon { background: var(--soft); color: var(--ink); border: 2px solid var(--accent); font-size: 14px; }
 .item.visited .item-icon { background: var(--accent-strong); color: #fff; font-size: 14px; }
 .item-text { display: flex; flex-direction: column; min-width: 0; }
-.item-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 15px; }
+.item-name { font-family: var(--font); font-weight: 700; font-size: 15px; }
 .item-romaji { font-size: 11px; color: var(--ink); opacity: 0.5; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .item-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -166,7 +168,7 @@ body.panel-hidden .panel-edge svg { transform: rotate(180deg); }
 .city-error { color: var(--danger); }
 #city-view[hidden], #city-results[hidden], #search-results[hidden] { display: none; }
 .city-back { display: block; margin: 12px 0 6px; font-size: 13px; }
-.city-title { font-family: 'Shippori Mincho', serif; font-size: 19px; margin: 0; }
+.city-title { font-family: var(--font); font-size: 19px; margin: 0; }
 .city-meta { margin: 2px 0 8px; font-size: 12px; color: var(--muted); }
 .city-sort { display: inline-flex; }
 
@@ -238,7 +240,7 @@ body.signed-in #export-btn { display: none; }
 }
 
 .leaflet-popup-content-wrapper { border-radius: 12px; }
-.leaflet-popup-content { margin: 14px 16px; font-family: 'Zen Kaku Gothic New', sans-serif; }
+.leaflet-popup-content { margin: 14px 16px; font-family: var(--font); }
 .popup-cover-wrap {
   position: relative; height: 150px; margin: -14px -16px 12px;
   border-radius: 12px 12px 0 0; overflow: hidden; background: var(--paper-2);
@@ -292,7 +294,7 @@ body.signed-in #export-btn { display: none; }
   width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #fff;
   object-fit: cover; background: var(--paper-2); flex-shrink: 0;
 }
-.popup-name { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 18px; color: var(--ink); }
+.popup-name { font-family: var(--font); font-weight: 700; font-size: 18px; color: var(--ink); }
 .popup-latin { color: var(--ink); opacity: 0.55; font-size: 12px; letter-spacing: 0.02em; margin-top: 1px; }
 .popup-status { margin: 8px 0; font-size: 13px; color: var(--muted); }
 .popup-status.wish { color: var(--accent-strong); font-weight: 700; }
@@ -345,12 +347,12 @@ body.signed-in #export-btn { display: none; }
 .nav-msg.error { background: #ffd9d1; color: #6d1203; }
 .nav-msg.arrive { background: #dff3e3; color: #0f3a1c; }
 .nav-msg-text { flex: 1 1 200px; }
-.nav-msg-stop { display: flex; flex: 1 1 100%; align-items: center; justify-content: space-between; gap: 8px; font-family: 'Shippori Mincho', serif; font-weight: 700; }
+.nav-msg-stop { display: flex; flex: 1 1 100%; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--font); font-weight: 700; }
 .nav-visit, .nav-done {
   border: 0; border-radius: 10px; padding: 10px 14px; font-size: 16px; font-weight: 700;
   background: var(--accent-strong); color: #fff;
 }
-.nav-visit { font-family: 'Zen Kaku Gothic New', system-ui, sans-serif; white-space: nowrap; }
+.nav-visit { font-family: var(--font); white-space: nowrap; }
 .nav-done { background: var(--ink); }
 .nav-visited { color: var(--accent-strong); font-weight: 700; font-size: 14px; }
 .nav-msg-close { border: 0; background: none; font-size: 18px; color: inherit; padding: 4px 6px; }
@@ -397,7 +399,7 @@ body.navigating .leaflet-top { top: calc(var(--nav-h, 0px) + env(safe-area-inset
   background: var(--paper); border-radius: 16px; padding: 20px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
-.modal-title { font-family: 'Shippori Mincho', serif; font-weight: 700; font-size: 20px; margin: 0 0 12px; text-align: center; }
+.modal-title { font-family: var(--font); font-weight: 700; font-size: 20px; margin: 0 0 12px; text-align: center; }
 #modal-card svg { display: block; width: 100%; height: auto; }
 #modal-card.reveal svg { animation: reveal 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
 @keyframes reveal {
@@ -473,7 +475,7 @@ body.account-open .tabs, body.account-open .tab-panel { display: none !important
 .account-back { background: none; border: 0; padding: 4px 0; color: var(--muted); font-size: 14px; }
 .account-back.center { display: block; margin: 14px auto 0; }
 .account-hero { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 6px; text-align: center; }
-.account-hero h2 { margin: 6px 0 0; font-family: 'Shippori Mincho', serif; font-size: 24px; }
+.account-hero h2 { margin: 6px 0 0; font-family: var(--font); font-size: 24px; }
 .account-realname { margin: -4px 0 0; color: var(--muted); font-size: 13px; }
 .account-since { margin: 0; color: var(--muted); font-size: 13px; }
 .account-screen .account-pitch { margin: 14px 8px 18px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5; }
@@ -487,7 +489,7 @@ body.account-open .tabs, body.account-open .tab-panel { display: none !important
 .stat span { font-size: 12px; }
 .stat small { font-size: 10px; color: var(--muted); }
 .account-section { margin-top: 22px; }
-.account-section h3 { margin: 0 0 6px; font-family: 'Shippori Mincho', serif; font-size: 16px; }
+.account-section h3 { margin: 0 0 6px; font-family: var(--font); font-size: 16px; }
 .account-section p { margin: 4px 0; font-size: 14px; }
 .account-section .credit { margin-top: 10px; text-align: center; font-size: 10px; color: var(--muted); }
 

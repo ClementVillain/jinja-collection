@@ -3,7 +3,8 @@
 // postale pour chacun, prépare des circuits et laisse-toi guider jusqu'à eux.
 import 'react-native-gesture-handler';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Keyboard, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Keyboard, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Text from './src/components/Text';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';

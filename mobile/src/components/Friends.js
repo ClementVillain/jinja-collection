@@ -2,7 +2,8 @@
 // accepter / refuser les demandes, voir la collection d'un ami et son dernier sanctuaire visité.
 // Serveur : api/friends.js — seuls les noms d'utilisateur circulent.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import Text, { roboto } from './Text';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { Postcard, useCoverPhoto } from './PostcardModal';
 import { apiJson } from '../lib/api';
@@ -85,7 +86,7 @@ export default function Friends({ onSelect, cardWidth, onLogin }) {
     <View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.addRow}>
-        <BottomSheetTextInput style={styles.input} value={name} onChangeText={setName} autoCapitalize="none" autoCorrect={false}
+        <BottomSheetTextInput style={roboto(styles.input)} value={name} onChangeText={setName} autoCapitalize="none" autoCorrect={false}
           placeholder="Nom d'utilisateur d'un ami" placeholderTextColor={colors.muted} maxLength={20} onSubmitEditing={() => name.trim() && act('add', name.trim())} />
         <Pressable style={styles.primaryBtn} onPress={() => name.trim() && act('add', name.trim())}><Text style={styles.primaryText}>Ajouter</Text></Pressable>
       </View>
