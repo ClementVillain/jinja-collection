@@ -12,8 +12,8 @@
   --paper-2: #eef5f1;
   --line: #d7e7dd;
   --panel-w: 380px;
-  /* Roboto ; les kanji (absents de Roboto) passent par la police japonaise du système. */
-  --font: 'Roboto', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
+  /* Lato ; les kanji (absents de Lato) passent par la police japonaise du système. */
+  --font: 'Lato', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }

@@ -45,9 +45,8 @@
         "expo-font",
         {
           "fonts": [
-            "./node_modules/@expo-google-fonts/roboto/400Regular/Roboto_400Regular.ttf",
-            "./node_modules/@expo-google-fonts/roboto/500Medium/Roboto_500Medium.ttf",
-            "./node_modules/@expo-google-fonts/roboto/700Bold/Roboto_700Bold.ttf"
+            "./node_modules/@expo-google-fonts/lato/400Regular/Lato_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/lato/700Bold/Lato_700Bold.ttf"
           ]
         }
       ]

@@ -2,7 +2,7 @@
 // de couverture quand il y en a une, une note de visite, et le partage de la carte en image.
 import { useEffect, useRef, useState } from 'react';
 import { Dimensions, KeyboardAvoidingView, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import Text, { roboto } from './Text';
+import Text, { withFont } from './Text';
 import { SvgXml } from 'react-native-svg';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -65,7 +65,7 @@ export default function PostcardModal({ id, isNew, onClose, onShowOnMap }) {
           </View>
           <Text style={styles.label}>Note de visite</Text>
           <TextInput
-            style={roboto(styles.note)}
+            style={withFont(styles.note)}
             value={note}
             onChangeText={setNote}
             onEndEditing={() => c.setNote(id, note)}

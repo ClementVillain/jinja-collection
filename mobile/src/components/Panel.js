@@ -2,7 +2,7 @@
 // À visiter (avec le circuit), Visités et Collection.
 import { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, Keyboard, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
-import Text, { roboto } from './Text';
+import Text, { withFont } from './Text';
 import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import * as Location from 'expo-location';
 import JinjaRoute from '../shared/route';
@@ -255,7 +255,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
         {tab === 'explore' ? (
           <>
             <BottomSheetTextInput
-              style={roboto(styles.search)} value={query} onChangeText={setQuery} clearButtonMode="while-editing"
+              style={withFont(styles.search)} value={query} onChangeText={setQuery} clearButtonMode="while-editing"
               placeholder="Sanctuaire ou ville (伏見稲荷, hakusan, Kyoto…)" placeholderTextColor={colors.muted} autoCorrect={false}
             />
             {city ? <CityView place={city} onBack={() => setSearch({ query, city: null })} onSelect={onSelect} /> : (

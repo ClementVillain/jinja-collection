@@ -151,7 +151,7 @@
   // Sans photo, la carte garde son illustration générée.
   function photoLayer(photo, uid) {
     const credit = photo.credit ? `<rect x="20" y="${H - 26}" width="${W - 40}" height="26" fill="url(#${uid}shade)"/>
-    <text x="32" y="${H - 9}" font-family="Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="11" fill="#fff" opacity="0.9">Photo : ${esc(photo.credit)}</text>` : '';
+    <text x="32" y="${H - 9}" font-family="Lato, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="11" fill="#fff" opacity="0.9">Photo : ${esc(photo.credit)}</text>` : '';
     return `<defs><linearGradient id="${uid}shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.55"/></linearGradient></defs>
     <rect x="0" y="0" width="${W}" height="${H}" fill="#2b2420"/>
     <image data-photo="1" href="${esc(photo.src)}" x="20" y="20" width="${W - 40}" height="${H - 20}" preserveAspectRatio="xMidYMid slice"/>
@@ -182,13 +182,13 @@
   <g transform="translate(${W - 92} 52) rotate(-12)">
     <circle r="40" fill="none" stroke="#c8281e" stroke-width="4" opacity="0.85"/>
     <circle r="33" fill="none" stroke="#c8281e" stroke-width="1.5" opacity="0.85"/>
-    <text y="-4" text-anchor="middle" font-family="Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="20" font-weight="700" fill="#c8281e" opacity="0.9">参拝</text>
-    <text y="16" text-anchor="middle" font-family="Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="9" fill="#c8281e" opacity="0.9">${visit && visit.date ? new Date(visit.date).toLocaleDateString('fr-FR') : ''}</text>
+    <text y="-4" text-anchor="middle" font-family="Lato, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="20" font-weight="700" fill="#c8281e" opacity="0.9">参拝</text>
+    <text y="16" text-anchor="middle" font-family="Lato, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="9" fill="#c8281e" opacity="0.9">${visit && visit.date ? new Date(visit.date).toLocaleDateString('fr-FR') : ''}</text>
   </g>
-  <text x="36" y="${H + 44}" font-family="Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="32" font-weight="700" fill="#1d1e18">${esc(shrine.name)}</text>
-  <text x="36" y="${H + 72}" font-family="Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="16" fill="#5e6a60">${esc(latin)}</text>
-  <text x="36" y="${H + 98}" font-family="Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="13" fill="#7d897f">${esc(theme.label)} · ${esc(rarity.label)}${date ? ' · visité le ' + esc(date) : ''}</text>
-  <text x="${W - 36}" y="${H + 98}" text-anchor="end" font-family="Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="18" font-weight="700" fill="#4f6e55">No. ${num}</text>
+  <text x="36" y="${H + 44}" font-family="Lato, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="32" font-weight="700" fill="#1d1e18">${esc(shrine.name)}</text>
+  <text x="36" y="${H + 72}" font-family="Lato, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="16" fill="#5e6a60">${esc(latin)}</text>
+  <text x="36" y="${H + 98}" font-family="Lato, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="13" fill="#7d897f">${esc(theme.label)} · ${esc(rarity.label)}${date ? ' · visité le ' + esc(date) : ''}</text>
+  <text x="${W - 36}" y="${H + 98}" text-anchor="end" font-family="Lato, 'Hiragino Sans', 'Noto Sans JP', sans-serif" font-size="18" font-weight="700" fill="#4f6e55">No. ${num}</text>
 </svg>`;
   }
 
