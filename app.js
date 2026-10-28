@@ -651,6 +651,26 @@
     if (tab.dataset.tab === 'friends') loadFriends();
   }));
 
+  // Sur mobile, balayer le volet change d'onglet ; depuis le compte, balayer vers la droite
+  // ramène aux onglets. Un geste surtout vertical (défilement) ou trop court est ignoré.
+  let swipeStart = null;
+  $('.panel').addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    swipeStart = e.touches.length === 1 && !e.target.closest('input, textarea, .carousel, .sheet-grab, header') ? { x: t.clientX, y: t.clientY } : null;
+  }, { passive: true });
+  $('.panel').addEventListener('touchend', (e) => {
+    if (!swipeStart || !isMobile()) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStart.x, dy = t.clientY - swipeStart.y;
+    swipeStart = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    document.activeElement?.blur?.();
+    if (document.body.classList.contains('account-open')) { if (dx > 0) openAccount(false); return; }
+    const tabs = [...document.querySelectorAll('.tab')];
+    const next = tabs[tabs.findIndex((t) => t.classList.contains('active')) + (dx < 0 ? 1 : -1)];
+    next?.click();
+  }, { passive: true });
+
   function refreshPanels() {
     const ordered = visitedOrdered();
     const n = ordered.length;
@@ -1190,7 +1210,6 @@
   let syncStatus = { text: '', error: false };
   // Nom d'utilisateur public (undefined : pas encore lu ; null : pas encore choisi).
   let username;
-  let editingName = false;
 
   function jwtPayload(token) {
     try {
@@ -1435,14 +1454,13 @@
     $('#account-btn').hidden = !googleClientId;
     const el = $('#account');
     if (el.hidden) return;
-    const back = '<button type="button" class="account-back" data-account-close>‹ Retour</button>';
     if (googleUser) {
       const { visited, wished, mine, prefs } = accountStats();
       const since = profileInfo?.since ? new Date(profileInfo.since).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '';
       const prefSample = [...prefs].slice(0, 3).map((p) => prefectureNames.get(p)).filter(Boolean).join(' · ') + (prefs.size > 3 ? '…' : '');
       const stat = (value, label, sub = '') => `<div class="stat"><strong>${esc(String(value))}</strong><span>${label}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`;
       const banner = profileInfo?.banner ? ` style="background-image:url('${esc(profileInfo.banner)}')"` : '';
-      el.innerHTML = `${back}
+      el.innerHTML = `
         <div class="account-banner"${banner}>
           <button type="button" class="banner-edit" data-image-pick="banner" title="Changer la bannière">✎ Bannière</button>
         </div>
@@ -1451,6 +1469,7 @@
           <p class="image-status" data-image-status hidden></p>
           <h2>${esc(username ? `@${username}` : googleUser.name)}</h2>
           ${username ? `<p class="account-realname">${esc(googleUser.name)}</p>` : ''}
+          <p id="sync-status" class="account-status ${syncStatus.error ? 'error' : ''}">${esc(syncStatus.text)}</p>
           <p class="account-since">${since ? `Membre depuis ${esc(since)}` : '&nbsp;'}</p>
         </div>
         <div class="stats">
@@ -1460,36 +1479,30 @@
           ${stat(wished.length, 'À visiter')}
           ${stat(profileInfo ? profileInfo.friends : '–', 'Amis')}
         </div>
+        ${username === null ? `
         <div class="account-section">
-          <h3>Nom public</h3>
-          ${username && !editingName ? `<p>@${esc(username)} · <button type="button" class="link-btn" data-edit-name>modifier</button></p>` : ''}
-          ${username === null || username === undefined || editingName ? `
           <form class="username-form">
-            <label>${username ? 'Nouveau nom d’utilisateur' : 'Choisis ton nom d’utilisateur public'} <small>(visible par les autres : amis, « Découvert par »)</small>
-              <span class="username-row"><input name="username" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]{3,20}" placeholder="ex : kitsune_77" value="${esc(username || '')}" autocomplete="off">
+            <label>Choisis ton nom d’utilisateur public <small>(visible par les autres : amis, « Découvert par »)</small>
+              <span class="username-row"><input name="username" required minlength="3" maxlength="20" pattern="[a-zA-Z0-9_]{3,20}" placeholder="ex : kitsune_77" autocomplete="off">
               <button class="primary small" type="submit">OK</button></span>
             </label>
             <span class="username-error" data-name-error></span>
-          </form>` : ''}
-          <p class="hint">Visible par les autres : amis et « Découvert par ».</p>
-        </div>
+          </form>
+        </div>` : ''}
         ${mine.length ? `<div class="account-section"><h3>${TORII} Visités en premier par toi</h3><ul class="list">${mine.map((s) => `
           <li class="item"><button class="item-main" data-action="locate" data-id="${s.id}" data-account-close>
             <span class="item-text"><span class="item-name">${esc(s.name)}</span>
             <span class="item-romaji">${esc([latinName(s), prefectureNames.get(s.prefecture)].filter(Boolean).join(' · '))}</span></span>
           </button></li>`).join('')}</ul></div>` : ''}
         <div class="account-section">
-          <p id="sync-status" class="account-status ${syncStatus.error ? 'error' : ''}">${esc(syncStatus.text)}</p>
           <button id="logout-btn" class="big-btn ghost" type="button">Se déconnecter</button>
           <p class="credit">Préfectures : 地球地図日本 (Global Map Japan, GSI)</p>
         </div>`;
-      el.querySelector('[data-edit-name]')?.addEventListener('click', () => { editingName = true; renderAccount(); });
       el.querySelector('.username-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const input = e.target.elements.username;
         try {
           ({ username } = await syncApiAt('/api/profile', 'PUT', { username: input.value }));
-          editingName = false;
           renderAccount();
           loadFriends();
           loadDiscoveries();
@@ -1503,7 +1516,7 @@
         setToken(null);
       });
     } else {
-      el.innerHTML = `${back}
+      el.innerHTML = `
         <div class="account-hero">
           ${avatarHtml(110)}
           <p class="account-pitch">Connecte-toi pour collectionner les sanctuaires, garder tes cartes postales et les retrouver sur le site et dans l'app.</p>

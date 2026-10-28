@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Dimensions, Image, Keyboard, Linking, Pressable, StyleSheet, Switch, View } from 'react-native';
 import Text, { withFont } from './Text';
 import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
 import * as Location from 'expo-location';
 import JinjaRoute from '../shared/route';
 import JinjaGeo from '../shared/geo';
@@ -205,6 +206,21 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
   const width = Dimensions.get('window').width;
   const cardW = (width - 16 * 2 - 10) / 2;
 
+  // Gestes : actif seulement pour un vrai mouvement horizontal, pour laisser défiler les listes.
+  const tabIndex = TABS.findIndex(([k]) => k === tab);
+  const swipe = usePanGesture({
+    activeOffsetX: [-30, 30],
+    failOffsetY: [-18, 18],
+    runOnJS: true,
+    onDeactivate: (e) => {
+      if (e.canceled || Math.abs(e.translationX) < 60) return;
+      Keyboard.dismiss();
+      if (account) { if (e.translationX > 0) setAccount(false); return; }
+      const next = tabIndex + (e.translationX < 0 ? 1 : -1);
+      if (next >= 0 && next < TABS.length) setTab(TABS[next][0]);
+    },
+  });
+
   const results = useMemo(() => {
     const q = normalize(query.trim());
     if (!q) return [];
@@ -229,12 +245,15 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
           <Text style={styles.progress}>{n.toLocaleString('fr-FR')} / {shrines.length.toLocaleString('fr-FR')} sanctuaires visités</Text>
         </View>
         {/* Compte : avatar en haut à droite, ouvre l'écran du compte. */}
-        <Pressable onPress={() => setAccount(true)} hitSlop={8} accessibilityLabel="Mon compte">
+        <Pressable onPress={() => setAccount(!account)} hitSlop={8} accessibilityLabel="Mon compte">
           <Avatar user={c.user} size={40} />
         </Pressable>
       </View>
       <View style={styles.bar}><View style={[styles.barFill, { width: `${Math.max(n ? 1.5 : 0, (n / shrines.length) * 100)}%` }]} /></View>
 
+      {/* Balayage horizontal : onglet suivant / précédent ; depuis le compte, vers la droite = retour. */}
+      <GestureDetector gesture={swipe}>
+      <View style={{ flex: 1 }}>
       {account ? (
         <BottomSheetScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <AccountScreen onBack={() => setAccount(false)} onSelect={(id) => { setAccount(false); onSelect(id); }} />
@@ -322,6 +341,8 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
       </BottomSheetScrollView>
       </>
       )}
+      </View>
+      </GestureDetector>
     </View>
   );
 }

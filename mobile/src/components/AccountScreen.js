@@ -117,7 +117,6 @@ const IMAGE_SIZE = { avatar: [512, 512], banner: [1500, 500] };
 
 function SignedIn({ onSelect }) {
   const c = useCollection();
-  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(null); // 'avatar' | 'banner' pendant un envoi
 
   const save = async (kind, asset) => {
@@ -173,6 +172,7 @@ function SignedIn({ onSelect }) {
         </Pressable>
         <Text style={styles.name}>{name}</Text>
         {c.username && c.user.name && c.user.name !== 'Compte Apple' ? <Text style={styles.realName}>{c.user.name}</Text> : null}
+        {c.syncStatus.text ? <Text style={[styles.sync, c.syncStatus.error && { color: colors.danger }]}>{c.syncStatus.text}</Text> : null}
         <Text style={styles.since}>{c.profile?.since ? `Membre depuis ${monthYear(c.profile.since)}` : ' '}</Text>
       </View>
 
@@ -184,13 +184,12 @@ function SignedIn({ onSelect }) {
         <Stat value={c.profile?.friends ?? '–'} label="Amis" />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Nom public</Text>
-        {c.username && !editing ? (
-          <Text style={styles.text}>@{c.username} · <Text style={styles.link} onPress={() => setEditing(true)}>modifier</Text></Text>
-        ) : <UsernameForm onDone={() => setEditing(false)} />}
-        <Text style={styles.hint}>Visible par les autres : amis et « Découvert par ».</Text>
-      </View>
+      {/* Nom public : demandé tant qu'il n'a pas été choisi (nécessaire pour les amis et « Découvert par »). */}
+      {c.username === null ? (
+        <View style={styles.section}>
+          <UsernameForm />
+        </View>
+      ) : null}
 
       {discovered.length ? (
         <View style={styles.section}>
@@ -205,7 +204,6 @@ function SignedIn({ onSelect }) {
       ) : null}
 
       <View style={styles.section}>
-        <Text style={[styles.hint, c.syncStatus.error && { color: colors.danger }]}>{c.syncStatus.text}</Text>
         <Pressable style={[styles.bigBtn, styles.logout]} onPress={c.signOut}><Text style={styles.logoutText}>Se déconnecter</Text></Pressable>
         <Text style={styles.credit}>Préfectures : 地球地図日本 (Global Map Japan, GSI)</Text>
       </View>
@@ -217,7 +215,6 @@ export default function AccountScreen({ onBack, onSelect }) {
   const c = useCollection();
   return (
     <View style={styles.wrap}>
-      <Pressable style={styles.backRow} onPress={onBack} hitSlop={10}><Text style={styles.back}>‹ Retour</Text></Pressable>
       {c.user ? <SignedIn onSelect={onSelect} /> : <SignedOut onBack={onBack} />}
     </View>
   );
@@ -234,7 +231,7 @@ const styles = StyleSheet.create({
   avatarRing: { borderWidth: 4, borderColor: '#fff', borderRadius: 64, backgroundColor: '#fff' },
   avatarPen: { position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(29,30,24,0.75)', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   penText: { color: '#fff', fontSize: 14 },
-  wrap: { paddingHorizontal: 16, paddingBottom: 40 },
+  wrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   backRow: { paddingVertical: 4, marginBottom: 6 },
   back: { color: colors.muted, fontSize: 14 },
   center: { alignItems: 'center', gap: 10, paddingTop: 8 },
@@ -252,6 +249,7 @@ const styles = StyleSheet.create({
   name: { fontFamily: fonts.serif, fontWeight: '700', fontSize: 24, color: colors.ink, marginTop: 6 },
   realName: { color: colors.muted, fontSize: 13, marginTop: -6 },
   since: { color: colors.muted, fontSize: 13 },
+  sync: { color: colors.accentStrong, fontSize: 12, marginTop: -4 },
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 22 },
   stat: { flexBasis: '31%', flexGrow: 1, backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 8, alignItems: 'center' },
   statValue: { fontSize: 22, fontWeight: '800', color: colors.accentStrong },
