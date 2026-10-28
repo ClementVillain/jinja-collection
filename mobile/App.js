@@ -3,7 +3,7 @@
 // postale pour chacun, prépare des circuits et laisse-toi guider jusqu'à eux.
 import 'react-native-gesture-handler';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Alert, Keyboard, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,6 +67,8 @@ function Main() {
   const select = useCallback((id) => {
     const s = byId.get(id);
     if (!s) return;
+    // Le clavier de la recherche ne doit pas rester ouvert par-dessus la carte.
+    Keyboard.dismiss();
     setSelectedId(id);
     map.current?.flyTo(s.lat, s.lon, 15, centerPadding(revealMap(SNAP.half)));
   }, [centerPadding, revealMap]);

@@ -1,7 +1,7 @@
 // Panneau principal (volet du bas) : compte Google, progression, et onglets Explorer,
 // À visiter (avec le circuit), Visités et Collection.
 import { useEffect, useMemo, useState } from 'react';
-import { Dimensions, Image, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Dimensions, Image, Keyboard, Linking, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import * as Location from 'expo-location';
 import JinjaRoute from '../shared/route';
@@ -288,7 +288,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
         ))}
       </View>
 
-      <BottomSheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <BottomSheetScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         {tab === 'explore' ? (
           <>
             <Account />
@@ -301,7 +301,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
                 {cities.status === 'loading' ? <Text style={styles.hint}>Recherche de villes…</Text> : null}
                 {cities.status === 'error' ? <Text style={styles.error}>Recherche par ville impossible : {cities.error}. Vérifie ta connexion et réessaie.</Text> : null}
                 {cities.places.map((p) => (
-                  <Pressable key={p.key} style={styles.item} onPress={() => { setSearch({ query, city: p }); onFocusPlace(p); }}>
+                  <Pressable key={p.key} style={styles.item} onPress={() => { Keyboard.dismiss(); setSearch({ query, city: p }); onFocusPlace(p); }}>
                     <View style={styles.itemMain}>
                       <View style={styles.itemIcon}><Text style={{ fontSize: 15 }}>🏙</Text></View>
                       <View style={{ flex: 1 }}>

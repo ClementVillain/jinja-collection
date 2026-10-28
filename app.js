@@ -527,6 +527,7 @@
   }
 
   function focusShrine(id, zoom = 16) {
+    $('#search').blur(); // ferme le clavier du téléphone par-dessus la carte
     const s = byId.get(id);
     const m = markers.get(id);
     if (!s || !m) return;
@@ -966,6 +967,7 @@
 
   function openCity(place) {
     if (!place) return;
+    $('#search').blur(); // ferme le clavier du téléphone par-dessus la carte
     cityView = place;
     renderCityView();
     $('#tab-explore').scrollTop = 0;
