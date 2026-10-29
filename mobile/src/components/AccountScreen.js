@@ -17,14 +17,14 @@ import { colors, fonts } from '../theme';
 const PERSON = (color) => `<svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4" fill="${color}"/><path d="M4 21c.6-4.4 3.9-7 8-7s7.4 2.6 8 7z" fill="${color}"/></svg>`;
 
 // Avatar rond : photo choisie dans le profil, sinon photo Google, sinon silhouette
-// (utilisé aussi dans l'en-tête du volet).
-export function Avatar({ user, size = 40 }) {
+// (utilisé aussi dans l'en-tête du volet). Pour un ami : `name` et `uri` (sa photo ou null).
+export function Avatar({ user, size = 40, name, uri }) {
   const custom = useCollection()?.profile?.avatar;
-  const picture = user ? custom || user.picture : null;
+  const picture = name !== undefined ? uri : user ? custom || user.picture : null;
   if (picture) return <Image source={{ uri: picture }} style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.paper2 }} />;
-  const initial = user ? (user.givenName || user.name || '?').trim().charAt(0).toUpperCase() : '';
+  const initial = (name || (user ? user.givenName || user.name || '?' : '')).trim().charAt(0).toUpperCase();
   return (
-    <View style={[styles.avatarEmpty, { width: size, height: size, borderRadius: size / 2 }, user && { backgroundColor: colors.accentStrong }]}>
+    <View style={[styles.avatarEmpty, { width: size, height: size, borderRadius: size / 2 }, initial && { backgroundColor: colors.accentStrong }]}>
       {initial ? <Text style={[styles.initial, { fontSize: size * 0.42 }]}>{initial}</Text>
         : <SvgXml xml={PERSON('#ffffff')} width={size * 0.62} height={size * 0.62} />}
     </View>
@@ -63,9 +63,9 @@ const nameStyles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 12, marginTop: 8 },
 });
 
-const monthYear = (iso) => new Date(iso).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+export const monthYear = (iso) => new Date(iso).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
-function Stat({ value, label, sub }) {
+export function Stat({ value, label, sub }) {
   return (
     <View style={styles.stat}>
       <Text style={styles.statValue}>{value}</Text>
@@ -220,7 +220,7 @@ export default function AccountScreen({ onBack, onSelect }) {
   );
 }
 
-const styles = StyleSheet.create({
+export const profileStyles = StyleSheet.create({
   banner: { height: 130, marginHorizontal: -16, justifyContent: 'flex-end', overflow: 'hidden' },
   bannerImage: { resizeMode: 'cover' },
   bannerDefault: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.accent },
@@ -267,3 +267,4 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, fontWeight: '600', color: colors.accentStrong },
   credit: { fontSize: 10, color: colors.muted, textAlign: 'center', marginTop: 10 },
 });
+const styles = profileStyles;

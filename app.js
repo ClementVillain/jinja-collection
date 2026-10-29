@@ -93,6 +93,7 @@
   const iconWish = L.divIcon({ className: 'pin pin-wish', html: '<span>★</span>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
   // Torii monochrome (prend la couleur du texte) : l'émoji ⛩ s'affiche toujours en rouge.
   const TORII = '<svg class="torii" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 4.2Q12 6.6 22.5 4.2L21.9 7.1Q12 8.9 2.1 7.1Z"/><rect x="3.6" y="10" width="16.8" height="1.9" rx=".4"/><rect x="5.4" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="16.3" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="11" y="7.8" width="2" height="2.6"/></svg>';
+  const ADD_FRIEND = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10" cy="8" r="4" fill="currentColor"/><path d="M2.5 21c.5-4.2 3.6-6.6 7.5-6.6s7 2.4 7.5 6.6z" fill="currentColor"/><path d="M19.5 4v6M16.5 7h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   const iconDone = L.divIcon({ className: 'pin pin-done', html: `<span>${TORII}</span>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
 
   const cluster = L.markerClusterGroup({
@@ -1299,10 +1300,12 @@
   }
 
   // ---------- Amis (api/friends.js) ----------
-  // friends : null tant que la liste n'est pas chargée ; friendView : collection d'un ami ouverte.
+  // friends : null tant que la liste n'est pas chargée ; friendView : profil d'ami affiché dans
+  // l'écran du compte ({ username, avatar, count, data, error }), même présentation que « Mon compte ».
   let friends = null;
   let friendView = null;
   let friendsError = '';
+  let friendQuery = '';
   const friendsApi = (method, body, query = '') => syncApiAt(`/api/friends${query}`, method, body);
 
   async function loadFriends() {
@@ -1317,15 +1320,11 @@
   }
 
   async function openFriend(name) {
-    friendView = { username: name, visits: null };
-    renderFriends();
-    try { friendView = await friendsApi('GET', null, `?user=${encodeURIComponent(name)}`); } catch (err) { friendView = null; friendsError = err.message; }
-    renderFriends();
-  }
-
-  function shrineLink(id) {
-    const s = byId.get(id);
-    return s ? `<button class="link-btn" data-action="locate" data-id="${s.id}">${esc(s.name)}</button>` : 'sanctuaire inconnu';
+    const f = friends?.friends.find((x) => x.username === name) || { username: name };
+    const view = friendView = { ...f, data: null, error: '' };
+    openAccount(true);
+    try { view.data = await friendsApi('GET', null, `?user=${encodeURIComponent(name)}`); } catch (err) { view.error = err.message; }
+    if (friendView === view) renderAccount();
   }
 
   function renderFriends() {
@@ -1343,54 +1342,115 @@
       return;
     }
     const error = friendsError ? `<p class="friends-error">${esc(friendsError)}</p>` : '';
-    if (friendView) {
-      const ordered = Object.entries(friendView.visits || {})
-        .filter(([id]) => byId.has(id))
-        .sort((a, b) => a[1].date.localeCompare(b[1].date))
-        .map(([id, visit], i) => ({ shrine: byId.get(id), visit, number: i + 1 }));
-      box.innerHTML = `${error}
-        <button class="ghost small" data-friends="back">← Amis</button>
-        <h3 class="friends-title">Collection de @${esc(friendView.username)}${friendView.visits ? ` · ${ordered.length} carte${ordered.length > 1 ? 's' : ''}` : ''}</h3>
-        ${!friendView.visits ? '<p class="hint">Chargement…</p>' : ordered.length ? `<div class="card-grid">${[...ordered].reverse().map(({ shrine: s, visit, number }) => `
-          <button class="card-thumb rarity-${ShrineCard.rarityOf(s.id).key}" data-action="locate" data-id="${s.id}" title="${esc(s.name)} — ${new Date(visit.date).toLocaleDateString('fr-FR')}">
-            ${ShrineCard.render(s, visit, number)}
-          </button>`).join('')}</div>` : '<p class="hint">Sa collection est encore vide.</p>'}`;
-      return;
-    }
-    const item = (name, sub, buttons) => `<li class="item friend">
-        <span class="item-main"><span class="item-icon">${esc(name[0].toUpperCase())}</span>
-        <span class="item-text"><span class="item-name">@${esc(name)}</span>${sub ? `<span class="item-sub">${sub}</span>` : ''}</span></span>${buttons}</li>`;
-    box.innerHTML = `${error}
+    box.innerHTML = `
       <form class="friend-add">
-        <input name="username" placeholder="Nom d'utilisateur d'un ami" required minlength="3" maxlength="20" autocomplete="off">
-        <button class="primary small" type="submit">Ajouter</button>
+        <input name="username" placeholder="Rechercher ou ajouter un ami" maxlength="21" autocomplete="off" autocapitalize="none" value="${esc(friendQuery)}">
+        <button class="add-friend-btn" type="submit" title="Ajouter un ami" aria-label="Ajouter un ami">${ADD_FRIEND}</button>
       </form>
-      <p class="hint">Tu es <b>@${esc(username)}</b>. Tes amis voient tes cartes postales (sanctuaires et dates), jamais tes notes ni ta position.</p>
-      ${!friends ? '<p class="hint">Chargement…</p>' : `
-        ${friends.incoming.length ? `<h3 class="friends-title">Demandes reçues</h3><ul class="list">${friends.incoming.map((name) => item(name, 'veut être ton ami',
-          `<button class="primary small" data-friends="add" data-name="${esc(name)}">Accepter</button><button class="ghost small" data-friends="remove" data-name="${esc(name)}">Refuser</button>`)).join('')}</ul>` : ''}
-        <h3 class="friends-title">Mes amis</h3>
-        ${friends.friends.length ? `<ul class="list">${friends.friends.map((f) => item(f.username,
-          `${f.count} carte${f.count > 1 ? 's' : ''}${f.last ? ` · dernier : ${shrineLink(f.last.id)} (${new Date(f.last.date).toLocaleDateString('fr-FR')})` : ''}`,
-          `<button class="ghost small" data-friends="view" data-name="${esc(f.username)}">Collection</button><button class="ghost small" data-friends="remove" data-name="${esc(f.username)}" title="Retirer de mes amis">✕</button>`)).join('')}</ul>`
-          : '<p class="hint">Pas encore d\'amis. Ajoute-les par leur nom d\'utilisateur.</p>'}
-        ${friends.outgoing.length ? `<h3 class="friends-title">Demandes envoyées</h3><ul class="list">${friends.outgoing.map((name) => item(name, 'en attente',
-          `<button class="ghost small" data-friends="remove" data-name="${esc(name)}">Annuler</button>`)).join('')}</ul>` : ''}`}`;
+      ${error}
+      <div data-friend-list></div>
+      <p class="hint">Tu es <b>@${esc(username)}</b>. Tes amis voient tes cartes postales (sanctuaires et dates), jamais tes notes ni ta position.</p>`;
+    renderFriendList();
+  }
+
+  // Partie filtrée par la recherche, redessinée à chaque frappe sans toucher au champ.
+  function renderFriendList() {
+    const list = $('#friends-box [data-friend-list]');
+    if (!list) return;
+    if (!friends) { list.innerHTML = '<p class="hint">Chargement…</p>'; return; }
+    const q = friendQuery.trim().replace(/^@/, '').toLowerCase();
+    const known = [...friends.friends.map((f) => f.username), ...friends.incoming, ...friends.outgoing].some((u) => u.toLowerCase() === q);
+    const shown = friends.friends.filter((f) => !q || f.username.toLowerCase().includes(q));
+    list.innerHTML = `
+      ${friends.incoming.map((name) => `<div class="friend-card request">
+        ${avatarHtml(50, { username: name })}
+        <span class="friend-text"><b>@${esc(name)}</b><small>veut être ton ami</small></span>
+        <button class="primary small" data-friends="add" data-name="${esc(name)}">Accepter</button>
+        <button class="ghost small" data-friends="remove" data-name="${esc(name)}" title="Refuser">✕</button>
+      </div>`).join('')}
+      ${shown.map((f) => `<button type="button" class="friend-card" data-friends="view" data-name="${esc(f.username)}">
+        ${avatarHtml(50, f)}
+        <span class="friend-text"><b>@${esc(f.username)}</b><small>${f.last && byId.has(f.last.id) ? esc(byId.get(f.last.id).name) : 'Pas encore de visite'}</small></span>
+        <span class="friend-torii">${TORII}<span class="friend-count">${f.count}</span></span>
+      </button>`).join('')}
+      ${q.length >= 3 && !known ? `<button type="button" class="friend-card invite" data-friends="add" data-name="${esc(q)}">
+        <span class="friend-text"><small>Envoyer une demande d'ami à <b>@${esc(q)}</b></small></span><span class="invite-go">Ajouter</span></button>` : ''}
+      ${!friends.friends.length && !q ? '<p class="hint">Pas encore d\'amis. Tape le nom d\'utilisateur d\'un ami et touche le bouton à côté de la recherche.</p>' : ''}
+      ${friends.outgoing.length ? `<h3 class="friends-title">Demandes envoyées</h3>${friends.outgoing.map((name) => `<p class="friend-pending">@${esc(name)} · en attente
+        <button class="link-btn" data-friends="remove" data-name="${esc(name)}">Annuler</button></p>`).join('')}` : ''}`;
+  }
+
+  // Profil d'un ami (dans l'écran du compte) : bannière, photo, statistiques, carte postale
+  // du dernier sanctuaire visité, puis sa collection.
+  function renderFriendProfile(el) {
+    const f = friendView, d = f.data;
+    const ordered = Object.entries(d?.visits || {})
+      .filter(([id]) => byId.has(id))
+      .sort((a, b) => a[1].date.localeCompare(b[1].date))
+      .map(([id, visit], i) => ({ shrine: byId.get(id), visit, number: i + 1 }))
+      .reverse();
+    const prefs = new Set(ordered.map((e) => e.shrine.prefecture).filter(Boolean));
+    const prefSample = [...prefs].slice(0, 3).map((p) => prefectureNames.get(p)).filter(Boolean).join(' · ') + (prefs.size > 3 ? '…' : '');
+    const discovered = Object.entries(discoveries).filter(([id, name]) => name === f.username && byId.has(id)).length;
+    const since = d?.since ? new Date(d.since).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '';
+    const stat = (value, label, sub = '') => `<div class="stat"><strong>${esc(String(value))}</strong><span>${label}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`;
+    const card = ({ shrine: s, visit, number }) => `<button class="card-thumb rarity-${ShrineCard.rarityOf(s.id).key}" data-action="locate" data-id="${s.id}" data-account-close title="${esc(s.name)} — ${new Date(visit.date).toLocaleDateString('fr-FR')}">
+        ${ShrineCard.render(s, visit, number)}</button>`;
+    const [last, ...rest] = ordered;
+    el.innerHTML = `
+      <button type="button" class="account-back desktop-only" data-friend-back>‹ Amis</button>
+      <div class="account-banner"${d?.banner ? ` style="background-image:url('${esc(d.banner)}')"` : ''}></div>
+      <div class="account-hero with-banner">
+        <span class="avatar-ring">${avatarHtml(110, { username: f.username, avatar: d ? d.avatar : f.avatar })}</span>
+        <h2>@${esc(f.username)}</h2>
+        <p class="account-since">${since ? `Membre depuis ${esc(since)}` : '&nbsp;'}</p>
+      </div>
+      ${f.error ? `<p class="friends-error">${esc(f.error)}</p>` : ''}
+      <div class="stats stats-4">
+        ${stat(d ? ordered.length : f.count ?? '–', 'Sanctuaires visités')}
+        ${stat(d ? `${prefs.size}/47` : '–', 'Préfectures', prefSample)}
+        ${stat(discovered, 'Découvertes', 'premier visiteur')}
+        ${stat(d?.friends ?? '–', 'Amis')}
+      </div>
+      ${!d ? (f.error ? '' : '<p class="hint center">Chargement…</p>') : last ? `
+        <div class="account-section"><h3>Dernier sanctuaire visité</h3>
+          <p class="hint">le ${new Date(last.visit.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <div class="last-card">${card(last)}</div></div>
+        ${rest.length ? `<div class="account-section"><h3>Sa collection · ${ordered.length} cartes</h3><div class="card-grid">${rest.map(card).join('')}</div></div>` : ''}`
+        : '<p class="hint center">Sa collection est encore vide.</p>'}
+      <div class="account-section">
+        <button class="big-btn ghost danger-text" type="button" data-friend-remove>Retirer de mes amis</button>
+        <p class="credit mobile-only">Balaie vers la droite pour revenir à tes amis.</p>
+      </div>`;
+    el.querySelector('[data-friend-back]').addEventListener('click', () => openAccount(false));
+    el.querySelector('[data-friend-remove]').addEventListener('click', async () => {
+      if (!confirm(`Retirer @${f.username} de tes amis ?`)) return;
+      openAccount(false);
+      await friendAction('remove', f.username);
+    });
+    el.querySelectorAll('[data-account-close]').forEach((b) => b.addEventListener('click', () => openAccount(false)));
   }
 
   $('#tab-friends').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-friends]');
     if (!btn) return;
     const { friends: action, name } = btn.dataset;
-    if (action === 'back') { friendView = null; renderFriends(); }
-    else if (action === 'view') openFriend(name);
+    if (action === 'view') openFriend(name);
     else if (action === 'remove' && !confirm(`Retirer @${name} ?`)) return;
     else if (action === 'add' || action === 'remove') friendAction(action, name);
   });
   $('#tab-friends').addEventListener('submit', (e) => {
     if (!e.target.matches('.friend-add')) return;
     e.preventDefault();
-    friendAction('add', e.target.elements.username.value.trim());
+    const name = friendQuery.trim().replace(/^@/, '');
+    if (!name) { friendsError = "Tape le nom d'utilisateur de ton ami, puis touche ce bouton."; renderFriends(); return; }
+    friendQuery = '';
+    friendAction('add', name);
+  });
+  $('#tab-friends').addEventListener('input', (e) => {
+    if (!e.target.matches('.friend-add input')) return;
+    friendQuery = e.target.value;
+    renderFriendList();
   });
 
   async function loadProfile() {
@@ -1422,7 +1482,12 @@
   let profileInfo = null; // { since, friends } du compte connecté
   let prefectureNames = new Map(); // code JIS → nom japonais
 
-  function avatarHtml(size) {
+  function avatarHtml(size, other) {
+    // Ami : sa photo, sinon l'initiale de son nom.
+    if (other) {
+      if (other.avatar) return `<img class="avatar" style="width:${size}px;height:${size}px" src="${esc(other.avatar)}" alt="">`;
+      return `<span class="avatar avatar-empty avatar-initial" style="width:${size}px;height:${size}px;font-size:${Math.round(size * 0.42)}px">${esc(other.username.charAt(0).toUpperCase())}</span>`;
+    }
     // Photo choisie dans le profil, sinon celle du compte Google.
     if (googleUser && profileInfo?.avatar) return `<img class="avatar" style="width:${size}px;height:${size}px" src="${esc(profileInfo.avatar)}" alt="">`;
     if (googleUser?.picture) return `<img class="avatar" style="width:${size}px;height:${size}px" src="${esc(googleUser.picture)}" alt="" referrerpolicy="no-referrer">`;
@@ -1431,6 +1496,7 @@
   }
 
   function openAccount(open = true) {
+    if (!open) friendView = null;
     document.body.classList.toggle('account-open', open);
     $('#account').hidden = !open;
     if (open) {
@@ -1439,7 +1505,11 @@
     }
   }
   const showAccount = () => { map.closePopup(); openAccount(true); };
-  $('#account-btn').addEventListener('click', (e) => { e.stopPropagation(); openAccount(!document.body.classList.contains('account-open')); });
+  $('#account-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (friendView) { friendView = null; openAccount(true); return; }
+    openAccount(!document.body.classList.contains('account-open'));
+  });
 
   function accountStats() {
     const visited = Object.keys(visits).filter((id) => byId.has(id));
@@ -1454,6 +1524,7 @@
     $('#account-btn').hidden = !googleClientId;
     const el = $('#account');
     if (el.hidden) return;
+    if (friendView) { renderFriendProfile(el); return; }
     if (googleUser) {
       const { visited, wished, mine, prefs } = accountStats();
       const since = profileInfo?.since ? new Date(profileInfo.since).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : '';

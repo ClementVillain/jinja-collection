@@ -10,6 +10,7 @@ import JinjaRoute from '../shared/route';
 import JinjaGeo from '../shared/geo';
 import { Postcard, useCoverPhoto } from './PostcardModal';
 import Friends from './Friends';
+import FriendProfile from './FriendProfile';
 import AccountScreen, { Avatar } from './AccountScreen';
 import { shrines, byId, useCollection } from '../state/CollectionContext';
 import { fmtDate, fmtDistance, fmtDuration, latinName, normalize } from '../lib/text';
@@ -195,9 +196,8 @@ function RouteBox({ items, excluded, route, setRoute, onStart, onFocusRoute, sim
   );
 }
 
-export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCircuit, onFocusRoute, onFocusPlace, search, setSearch, simulate, setSimulate, account, setAccount }) {
+export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCircuit, onFocusRoute, onFocusPlace, search, setSearch, simulate, setSimulate, account, setAccount, tab, setTab, friend, setFriend }) {
   const c = useCollection();
-  const [tab, setTab] = useState('explore');
   // Recherche gardée par App : le panneau est démonté pendant qu'une fiche est ouverte.
   const { query, city } = search;
   const setQuery = (q) => setSearch({ query: q, city: null });
@@ -216,6 +216,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
       if (e.canceled || Math.abs(e.translationX) < 60) return;
       Keyboard.dismiss();
       if (account) { if (e.translationX > 0) setAccount(false); return; }
+      if (friend) { if (e.translationX > 0) setFriend(null); return; }
       const next = tabIndex + (e.translationX < 0 ? 1 : -1);
       if (next >= 0 && next < TABS.length) setTab(TABS[next][0]);
     },
@@ -251,12 +252,16 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
       </View>
       <View style={styles.bar}><View style={[styles.barFill, { width: `${Math.max(n ? 1.5 : 0, (n / shrines.length) * 100)}%` }]} /></View>
 
-      {/* Balayage horizontal : onglet suivant / précédent ; depuis le compte, vers la droite = retour. */}
+      {/* Balayage horizontal : onglet suivant / précédent ; depuis le compte ou un profil d'ami, vers la droite = retour. */}
       <GestureDetector gesture={swipe}>
       <View style={{ flex: 1 }}>
       {account ? (
         <BottomSheetScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <AccountScreen onBack={() => setAccount(false)} onSelect={(id) => { setAccount(false); onSelect(id); }} />
+        </BottomSheetScrollView>
+      ) : friend ? (
+        <BottomSheetScrollView keyboardShouldPersistTaps="handled">
+          <FriendProfile key={friend.username} friend={friend} cardWidth={cardW} onSelect={onSelect} onRemoved={() => setFriend(null)} />
         </BottomSheetScrollView>
       ) : (
       <>
@@ -336,7 +341,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
           ) : <Text style={styles.hint}>Ta collection est vide. Chaque sanctuaire visité te donne une carte postale.</Text>
         ) : null}
         {tab === 'collection' ? <Text style={styles.hint}>Une visite compte si ta position a été enregistrée à moins de 1 km du sanctuaire dans les 48 h précédentes (position gardée sur ton appareil, seule la position utilisée est envoyée avec la visite). Cela évite les cartes cochées depuis son canapé, mais pas la triche délibérée : un GPS falsifié trompe la vérification.</Text> : null}
-        {tab === 'friends' ? <Friends onSelect={onSelect} cardWidth={cardW} onLogin={() => setAccount(true)} /> : null}
+        {tab === 'friends' ? <Friends onLogin={() => setAccount(true)} onOpenFriend={setFriend} /> : null}
         <Text style={styles.credit}>Données © OpenStreetMap · photos Wikimedia Commons</Text>
       </BottomSheetScrollView>
       </>

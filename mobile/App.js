@@ -33,6 +33,9 @@ function Main() {
   const [showUser, setShowUser] = useState(false);
   const [simulate, setSimulate] = useState(false);
   const [search, setSearch] = useState({ query: '', city: null });
+  // Onglet du volet et profil d'ami ouvert, gardés ici : le volet est démonté pendant une fiche.
+  const [tab, setTab] = useState('explore');
+  const [friend, setFriend] = useState(null);
   // Écran du compte (avatar en haut à droite du volet), affiché en plein écran.
   const [account, setAccountState] = useState(false);
   const setAccount = (open) => {
@@ -162,6 +165,10 @@ function Main() {
             setSimulate={setSimulate}
             account={account}
             setAccount={setAccount}
+            tab={tab}
+            setTab={setTab}
+            friend={friend}
+            setFriend={setFriend}
           />
         )}
       </BottomSheet>
