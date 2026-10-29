@@ -93,6 +93,8 @@
   const iconWish = L.divIcon({ className: 'pin pin-wish', html: '<span>★</span>', iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -13] });
   // Torii monochrome (prend la couleur du texte) : l'émoji ⛩ s'affiche toujours en rouge.
   const TORII = '<svg class="torii" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 4.2Q12 6.6 22.5 4.2L21.9 7.1Q12 8.9 2.1 7.1Z"/><rect x="3.6" y="10" width="16.8" height="1.9" rx=".4"/><rect x="5.4" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="16.3" y="7.4" width="2.3" height="13.8" rx=".4"/><rect x="11" y="7.8" width="2" height="2.6"/></svg>';
+  // Bouton retour rond en haut à gauche de la bannière (compte et profil d'ami).
+  const BACK_BTN = '<button type="button" class="account-back-btn" data-account-close aria-label="Retour" title="Retour"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
   const ADD_FRIEND = '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10" cy="8" r="4" fill="currentColor"/><path d="M2.5 21c.5-4.2 3.6-6.6 7.5-6.6s7 2.4 7.5 6.6z" fill="currentColor"/><path d="M19.5 4v6M16.5 7h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   const iconDone = L.divIcon({ className: 'pin pin-done', html: `<span>${TORII}</span>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
 
@@ -1398,7 +1400,7 @@
         ${ShrineCard.render(s, visit, number)}</button>`;
     const [last, ...rest] = ordered;
     el.innerHTML = `
-      <button type="button" class="account-back desktop-only" data-friend-back>‹ Amis</button>
+      ${BACK_BTN}
       <div class="account-banner"${d?.banner ? ` style="background-image:url('${esc(d.banner)}')"` : ''}></div>
       <div class="account-hero with-banner">
         <span class="avatar-ring">${avatarHtml(110, { username: f.username, avatar: d ? d.avatar : f.avatar })}</span>
@@ -1420,9 +1422,7 @@
         : '<p class="hint center">Sa collection est encore vide.</p>'}
       <div class="account-section">
         <button class="big-btn ghost danger-text" type="button" data-friend-remove>Retirer de mes amis</button>
-        <p class="credit mobile-only">Balaie vers la droite pour revenir à tes amis.</p>
       </div>`;
-    el.querySelector('[data-friend-back]').addEventListener('click', () => openAccount(false));
     el.querySelector('[data-friend-remove]').addEventListener('click', async () => {
       if (!confirm(`Retirer @${f.username} de tes amis ?`)) return;
       openAccount(false);
@@ -1532,6 +1532,7 @@
       const stat = (value, label, sub = '') => `<div class="stat"><strong>${esc(String(value))}</strong><span>${label}</span>${sub ? `<small>${esc(sub)}</small>` : ''}</div>`;
       const banner = profileInfo?.banner ? ` style="background-image:url('${esc(profileInfo.banner)}')"` : '';
       el.innerHTML = `
+        ${BACK_BTN}
         <div class="account-banner"${banner}>
           <button type="button" class="banner-edit" data-image-pick="banner" title="Changer la bannière">✎ Bannière</button>
         </div>

@@ -63,6 +63,17 @@ const nameStyles = StyleSheet.create({
   error: { color: colors.danger, fontSize: 12, marginTop: 8 },
 });
 
+const CHEVRON = '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+// Bouton retour rond, en haut à gauche de la bannière (compte et profil d'ami).
+export function BackButton({ onPress }) {
+  return (
+    <Pressable style={styles.backBtn} onPress={onPress} hitSlop={10} accessibilityLabel="Retour">
+      <SvgXml xml={CHEVRON} width={24} height={24} />
+    </Pressable>
+  );
+}
+
 export const monthYear = (iso) => new Date(iso).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
 export function Stat({ value, label, sub }) {
@@ -115,7 +126,7 @@ async function cropToJpeg(asset, [w, h]) {
 }
 const IMAGE_SIZE = { avatar: [512, 512], banner: [1500, 500] };
 
-function SignedIn({ onSelect }) {
+function SignedIn({ onSelect, onBack }) {
   const c = useCollection();
   const [busy, setBusy] = useState(null); // 'avatar' | 'banner' pendant un envoi
 
@@ -165,6 +176,7 @@ function SignedIn({ onSelect }) {
           <View style={styles.bannerEdit}>{busy === 'banner' ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.bannerEditText}>✎ Bannière</Text>}</View>
         </ImageBackground>
       </Pressable>
+      <BackButton onPress={onBack} />
       <View style={[styles.center, styles.overBanner]}>
         <Pressable onPress={() => edit('avatar')} disabled={!!busy} style={styles.avatarRing}>
           <Avatar user={c.user} size={110} />
@@ -215,7 +227,7 @@ export default function AccountScreen({ onBack, onSelect }) {
   const c = useCollection();
   return (
     <View style={styles.wrap}>
-      {c.user ? <SignedIn onSelect={onSelect} /> : <SignedOut onBack={onBack} />}
+      {c.user ? <SignedIn onSelect={onSelect} onBack={onBack} /> : <SignedOut onBack={onBack} />}
     </View>
   );
 }
@@ -231,6 +243,7 @@ export const profileStyles = StyleSheet.create({
   avatarRing: { borderWidth: 4, borderColor: '#fff', borderRadius: 64, backgroundColor: '#fff' },
   avatarPen: { position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(29,30,24,0.75)', borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   penText: { color: '#fff', fontSize: 14 },
+  backBtn: { position: 'absolute', left: 0, top: 10, width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(29,30,24,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   wrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   backRow: { paddingVertical: 4, marginBottom: 6 },
   back: { color: colors.muted, fontSize: 14 },

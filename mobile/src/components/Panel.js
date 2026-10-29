@@ -261,7 +261,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
         </BottomSheetScrollView>
       ) : friend ? (
         <BottomSheetScrollView keyboardShouldPersistTaps="handled">
-          <FriendProfile key={friend.username} friend={friend} cardWidth={cardW} onSelect={onSelect} onRemoved={() => setFriend(null)} />
+          <FriendProfile key={friend.username} friend={friend} cardWidth={cardW} onSelect={onSelect} onRemoved={() => setFriend(null)} onBack={() => setFriend(null)} />
         </BottomSheetScrollView>
       ) : (
       <>

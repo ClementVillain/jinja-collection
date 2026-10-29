@@ -1,11 +1,11 @@
 // Profil d'un ami, présenté comme « Mon compte » : bannière, photo, « Membre depuis »,
 // statistiques, carte postale du dernier sanctuaire visité, puis toute sa collection.
-// Lecture seule ; balayer vers la droite ramène à l'onglet Amis (geste géré par Panel).
+// Lecture seule ; le bouton retour ou un balayage vers la droite ramène à l'onglet Amis.
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Dimensions, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 import Text from './Text';
 import { Postcard, useCoverPhoto } from './PostcardModal';
-import { Avatar, Stat, monthYear, profileStyles as styles } from './AccountScreen';
+import { Avatar, BackButton, Stat, monthYear, profileStyles as styles } from './AccountScreen';
 import { apiJson } from '../lib/api';
 import { byId, prefectures, useCollection } from '../state/CollectionContext';
 import { fmtDate } from '../lib/text';
@@ -17,7 +17,7 @@ function Card({ id, entry, width, onPress }) {
 }
 
 // friend : résumé venu de la liste ({ username, avatar, count }), affiché pendant le chargement.
-export default function FriendProfile({ friend, cardWidth, onSelect, onRemoved }) {
+export default function FriendProfile({ friend, cardWidth, onSelect, onRemoved, onBack }) {
   const c = useCollection();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -63,6 +63,7 @@ export default function FriendProfile({ friend, cardWidth, onSelect, onRemoved }
       <ImageBackground source={banner ? { uri: banner } : null} style={styles.banner} imageStyle={styles.bannerImage}>
         {banner ? null : <View style={styles.bannerDefault}><View style={styles.bannerSoft} /></View>}
       </ImageBackground>
+      <BackButton onPress={onBack} />
       <View style={[styles.center, styles.overBanner]}>
         <View style={styles.avatarRing}>
           <Avatar name={friend.username} uri={data ? data.avatar : friend.avatar} size={110} />
@@ -102,7 +103,6 @@ export default function FriendProfile({ friend, cardWidth, onSelect, onRemoved }
 
       <View style={styles.section}>
         <Pressable style={[styles.bigBtn, styles.logout]} onPress={remove}><Text style={[styles.logoutText, { color: colors.danger }]}>Retirer de mes amis</Text></Pressable>
-        <Text style={styles.credit}>Balaie vers la droite pour revenir à tes amis.</Text>
       </View>
     </View>
   );
