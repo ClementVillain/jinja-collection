@@ -128,7 +128,7 @@ const IMAGE_SIZE = { avatar: [512, 512], banner: [1500, 500] };
 
 function SignedIn({ onSelect, onBack }) {
   const c = useCollection();
-  const [busy, setBusy] = useState(null); // 'avatar' | 'banner' pendant un envoi
+  const [busy, setBusy] = useState(null); // 'avatar' | 'banner' pendant un envoi, 'logout' pendant la déconnexion
 
   const save = async (kind, asset) => {
     setBusy(kind);
@@ -216,7 +216,9 @@ function SignedIn({ onSelect, onBack }) {
       ) : null}
 
       <View style={styles.section}>
-        <Pressable style={[styles.bigBtn, styles.logout]} onPress={c.signOut}><Text style={styles.logoutText}>Se déconnecter</Text></Pressable>
+        <Pressable style={[styles.bigBtn, styles.logout, busy === 'logout' && { opacity: 0.5 }]} disabled={!!busy} onPress={() => { setBusy('logout'); c.signOut(); }}>
+          <Text style={styles.logoutText}>{busy === 'logout' ? 'Déconnexion…' : 'Se déconnecter'}</Text>
+        </Pressable>
         <Text style={styles.credit}>Préfectures : 地球地図日本 (Global Map Japan, GSI)</Text>
       </View>
     </View>
