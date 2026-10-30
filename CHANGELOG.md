@@ -7,6 +7,9 @@ Règles de travail : voir `docs/git-flow.md`.
 
 ## [Non publié]
 
+### Fonctionnalités
+- Partage d'un sanctuaire : bouton « Partager » sur la fiche (site et app) et lien `?s=` qui ouvre directement le sanctuaire sur le site.
+
 ## [0.8.0] - 2026-10-30
 
 Première version numérotée : état du site et de l'app iOS au passage à git flow.
