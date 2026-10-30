@@ -1,5 +1,6 @@
 // Stockage local (équivalent du localStorage du site) : visites, liste « À visiter »,
-// photos déjà trouvées, session Google. Tout est en JSON.
+// photos déjà trouvées, session Google, profil et amis du compte (affichés avant le réseau).
+// Tout est en JSON.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const KEYS = {
@@ -11,6 +12,8 @@ export const KEYS = {
   googleToken: 'jinja-collection:google-token',
   appleName: 'jinja-collection:apple-name',
   sightings: 'jinja-collection:sightings',
+  profile: 'jinja-collection:profile',
+  friends: 'jinja-collection:friends',
 };
 
 export async function loadJson(key, fallback = {}) {
