@@ -1,9 +1,9 @@
 // Carte native (MapLibre) : fond OpenStreetMap vectoriel (OpenFreeMap, gratuit, sans clé),
-// ~30 000 sanctuaires regroupés en bulles par le téléphone, visités en rouge, « À visiter » en
-// doré (regroupés aussi, en bulles de leur couleur), sanctuaire sélectionné, circuit et navigation.
+// ~30 000 sanctuaires regroupés en bulles par le téléphone, visités en olive (torii), « À visiter » en
+// céladon (étoile) (regroupés aussi, en bulles de leur couleur), sanctuaire sélectionné, circuit et navigation.
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet } from 'react-native';
-import { Camera, GeoJSONSource, Layer, Map, NativeUserLocation } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Images, Layer, Map, NativeUserLocation } from '@maplibre/maplibre-react-native';
 import { shrines, byId } from '../state/CollectionContext';
 import { colors } from '../theme';
 
@@ -21,6 +21,10 @@ const OVERLAY_CLUSTER = { cluster: true, clusterRadius: 45, clusterMaxZoom: 12 }
 const isCluster = ['has', 'point_count'];
 const notCluster = ['!', isCluster];
 const overlayRadius = ['step', ['get', 'point_count'], 14, 10, 17, 100, 21];
+// Pictogrammes des points visités (torii blanc) et « À visiter » (étoile olive foncée), comme sur
+// le site. PNG tirés du tracé de Torii.js (14 pt, @2x/@3x), centrés sur la pastille, toujours affichés.
+const PIN_IMAGES = { torii: require('../../assets/map/torii.png'), star: require('../../assets/map/star.png') };
+const pinIcon = (image) => ({ 'icon-image': image, 'icon-size': 1, 'icon-allow-overlap': true, 'icon-ignore-placement': true });
 
 const point = (s, props = {}) => ({ type: 'Feature', id: s.id, properties: { id: s.id, ...props }, geometry: { type: 'Point', coordinates: [s.lon, s.lat] } });
 const collection = (features) => ({ type: 'FeatureCollection', features });
@@ -85,6 +89,7 @@ const ShrineMap = forwardRef(function ShrineMap({
       onRegionWillChange={(e) => { if (e.nativeEvent?.userInteraction) onUserPan?.(); }}
     >
       <Camera ref={camera} initialViewState={JAPAN} />
+      <Images images={PIN_IMAGES} />
       {showUser && !nav ? <NativeUserLocation /> : null}
 
       <GeoJSONSource id="shrines" ref={source} data={ALL} cluster clusterRadius={55} clusterMaxZoom={14} onPress={pressIn(source)}>
@@ -111,8 +116,8 @@ const ShrineMap = forwardRef(function ShrineMap({
           paint={{ 'circle-color': colors.soft, 'circle-radius': overlayRadius, 'circle-stroke-color': colors.accent, 'circle-stroke-width': 3 }} />
         <Layer id="wished-count" type="symbol" filter={isCluster}
           layout={{ 'text-field': CLUSTER_LABEL, 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': colors.ink }} />
-        <Layer id="wished-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.soft, 'circle-radius': 10, 'circle-stroke-color': colors.accent, 'circle-stroke-width': 3 }} />
-        <Layer id="wished-star" type="circle" filter={notCluster} paint={{ 'circle-color': colors.accentDark, 'circle-radius': 3.5 }} />
+        <Layer id="wished-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.soft, 'circle-radius': 11, 'circle-stroke-color': colors.accent, 'circle-stroke-width': 3 }} />
+        <Layer id="wished-star" type="symbol" filter={notCluster} layout={pinIcon('star')} />
       </GeoJSONSource>
 
       <GeoJSONSource id="visited" ref={visitedSource} data={visited} {...OVERLAY_CLUSTER} onPress={pressIn(visitedSource)}>
@@ -120,8 +125,8 @@ const ShrineMap = forwardRef(function ShrineMap({
           paint={{ 'circle-color': colors.accent, 'circle-radius': overlayRadius, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }} />
         <Layer id="visited-count" type="symbol" filter={isCluster}
           layout={{ 'text-field': CLUSTER_LABEL, 'text-font': FONT, 'text-size': 12, 'text-allow-overlap': true }} paint={{ 'text-color': '#ffffff' }} />
-        <Layer id="visited-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.accent, 'circle-radius': 11, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }} />
-        <Layer id="visited-center" type="circle" filter={notCluster} paint={{ 'circle-color': '#ffffff', 'circle-radius': 3 }} />
+        <Layer id="visited-dot" type="circle" filter={notCluster} paint={{ 'circle-color': colors.accent, 'circle-radius': 12, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 }} />
+        <Layer id="visited-torii" type="symbol" filter={notCluster} layout={pinIcon('torii')} />
       </GeoJSONSource>
 
       {routeLine && !nav ? (
