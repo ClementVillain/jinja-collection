@@ -571,7 +571,8 @@
     try {
       const perm = await navigator.permissions?.query({ name: 'geolocation' });
       if (perm?.state !== 'granted') return;
-      recordSighting(await gpsPosition());
+      const pos = await gpsPosition();
+      if (googleToken) recordSighting(pos); // pas après une déconnexion survenue entre-temps
     } catch { /* pas de position : tant pis */ }
   }
   setInterval(sampleGps, 3 * 60 * 1000);
@@ -1211,6 +1212,8 @@
   let syncing = null;
   let syncAgain = false;
   let syncStatus = { text: '', error: false };
+  // Incrémenté à la déconnexion : une synchro encore en cours ne doit plus rien réécrire.
+  let syncEpoch = 0;
   // Nom d'utilisateur public (undefined : pas encore lu ; null : pas encore choisi).
   let username;
 
@@ -1280,13 +1283,16 @@
     if (!googleToken) return Promise.resolve();
     if (syncing) { syncAgain = true; return syncing; }
     setSyncStatus('Synchronisation…');
+    const epoch = syncEpoch;
     syncing = (async () => {
       const { state: remote } = await syncApi('GET');
+      if (epoch !== syncEpoch) return; // déconnecté entre-temps : on ne touche plus à rien
       // Le compte d'abord : à égalité, la version du serveur (avec le statut de vérification) l'emporte.
       const merged = JinjaMerge.merge(remote, { visits, deleted, wishlist, wishDeleted });
       applyMerged(merged);
       if (!JinjaMerge.same(merged, remote)) {
         const { state: saved } = await syncApi('PUT', merged);
+        if (epoch !== syncEpoch) return;
         if (saved) applyMerged(JinjaMerge.merge(saved, { visits, deleted, wishlist, wishDeleted }));
         loadDiscoveries();
       }
@@ -1301,6 +1307,51 @@
     return syncing;
   }
 
+  // ---------- Déconnexion : la collection du compte quitte l'appareil ----------
+  // Dernière synchro pour envoyer ce qui ne l'est pas encore (au plus 8 s ; hors ligne, tant pis :
+  // la déconnexion prime). Le serveur n'est jamais écrit avec un état vide.
+  async function finalSync() {
+    clearTimeout(syncTimer);
+    const attempt = (async () => {
+      if (syncing) await syncing;
+      clearTimeout(syncTimer);
+      syncAgain = false;
+      await syncNow();
+    })();
+    await Promise.race([attempt, new Promise((resolve) => setTimeout(resolve, 8000))]);
+  }
+
+  // Vide la mémoire et le navigateur : visites, liste « À visiter », passages, photos, profil, amis.
+  // Appelée seulement par « Se déconnecter » (pas à l'expiration du jeton, renouvelé en silence).
+  // Les préférences d'affichage (panneau, volet) sont gardées.
+  function clearLocalCollection() {
+    syncEpoch++;
+    clearTimeout(syncTimer);
+    syncAgain = false;
+    const ids = new Set([...Object.keys(visits), ...Object.keys(wishlist)]);
+    visits = {};
+    deleted = {};
+    wishlist = {};
+    wishDeleted = {};
+    sightings = [];
+    photoStore = {};
+    photoCache.clear();
+    username = undefined;
+    profileInfo = null;
+    friends = null;
+    friendView = null;
+    friendsError = '';
+    friendQuery = '';
+    try {
+      [STORAGE_KEY, DELETED_KEY, WISH_KEY, WISH_DELETED_KEY, SIGHTINGS_KEY, PHOTO_STORE_KEY].forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+    map.closePopup();
+    ids.forEach((id) => { if (markers.has(id)) placeMarker(id); });
+    if (shrines.length) refreshPanels();
+    renderAccount();
+    renderFriends();
+  }
+
   // ---------- Amis (api/friends.js) ----------
   // friends : null tant que la liste n'est pas chargée ; friendView : profil d'ami affiché dans
   // l'écran du compte ({ username, avatar, count, data, error }), même présentation que « Mon compte ».
@@ -1312,7 +1363,12 @@
 
   async function loadFriends() {
     if (!googleToken || !username) { renderFriends(); return; }
-    try { friends = await friendsApi('GET'); friendsError = ''; } catch (err) { friendsError = err.message; }
+    const epoch = syncEpoch;
+    let list = null, error = '';
+    try { list = await friendsApi('GET'); } catch (err) { error = err.message; }
+    if (epoch !== syncEpoch) return; // déconnecté entre-temps
+    if (list) friends = list;
+    friendsError = error;
     renderFriends();
   }
 
@@ -1455,8 +1511,10 @@
 
   async function loadProfile() {
     if (!googleToken || username !== undefined) return;
+    const epoch = syncEpoch;
     try {
       const info = await syncApiAt('/api/profile', 'GET');
+      if (epoch !== syncEpoch) return; // déconnecté entre-temps
       username = info.username;
       profileInfo = { since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null };
       renderAccount();
@@ -1582,10 +1640,15 @@
           el.querySelector('[data-name-error]').textContent = err.message;
         }
       });
-      $('#logout-btn').addEventListener('click', () => {
+      $('#logout-btn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        btn.textContent = 'Déconnexion…';
+        await finalSync();
         try { google.accounts.id.disableAutoSelect(); localStorage.removeItem(LOGGED_KEY); } catch { /* ignore */ }
         setSyncStatus('');
         setToken(null);
+        clearLocalCollection();
       });
     } else {
       el.innerHTML = `
