@@ -1,5 +1,6 @@
 {
   "name": "jinja-collection",
+  "version": "0.8.0",
   "private": true,
   "description": "Carte des sanctuaires shintō du Japon à collectionner",
   "scripts": {

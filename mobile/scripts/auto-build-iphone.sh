@@ -3,7 +3,8 @@
 # Lancé toutes les 30 s par launchd (~/Library/LaunchAgents/com.villainclement.jinja-autobuild.plist) :
 # ne fait rien tant que l'iPhone n'est pas branché, puis une seule fois par branchement.
 # Ne recompile que si l'app a changé depuis la dernière installation, ou si celle-ci date de plus
-# de 6 jours (le profil gratuit expire au bout de 7). Récupère d'abord main si le dossier est propre.
+# de 6 jours (le profil gratuit expire au bout de 7). Récupère d'abord develop (git flow : les fonctionnalités
+# fusionnées mais pas encore publiées) si le dossier est propre et sur develop.
 #   Forcer une compilation : rm "$HOME/Library/Application Support/JinjaAutoBuild/last-tree"
 #   Journal : "$HOME/Library/Application Support/JinjaAutoBuild/build.log"
 set -u
@@ -42,11 +43,11 @@ log "iPhone branché"
 
 cd "$REPO" || fail "dossier du projet introuvable"
 
-# Dernière version de main, seulement si le dossier est propre (jamais d'écrasement de travail en cours).
-if [ "$(git branch --show-current)" = main ] && [ -z "$(git status --porcelain)" ]; then
-  git pull --ff-only -q origin main >> "$LOG" 2>&1 || log "git pull impossible, compilation de la version locale"
+# Dernière version de develop, seulement si le dossier est propre (jamais d'écrasement de travail en cours).
+if [ "$(git branch --show-current)" = develop ] && [ -z "$(git status --porcelain)" ]; then
+  git pull --ff-only -q origin develop >> "$LOG" 2>&1 || log "git pull impossible, compilation de la version locale"
 else
-  log "dossier modifié ou hors de main : compilation de la version locale, sans git pull"
+  log "dossier modifié ou hors de develop : compilation de la version locale, sans git pull"
   notify "Modifications locales en cours : compilation du dossier tel quel"
 fi
 
