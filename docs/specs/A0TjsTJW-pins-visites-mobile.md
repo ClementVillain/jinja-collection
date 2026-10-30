@@ -28,12 +28,12 @@ Dans l'app iOS, les marqueurs visités affichent le torii et les marqueurs « À
 - App : le développeur vérifie seulement que le bundle compile (`cd mobile && npm ci && npx expo export --platform ios`) ; Clément testera sur son iPhone.
 
 ## Critères d'acceptation
-- [ ] App : un sanctuaire visité s'affiche avec un torii sur pastille olive
-- [ ] App : un sanctuaire « À visiter » s'affiche avec une étoile sur pastille céladon
-- [ ] Les deux sont immédiatement distinguables d'un sanctuaire non visité et l'un de l'autre, à zoom 13-16
-- [ ] Les clusters et la sélection d'un sanctuaire fonctionnent comme avant (toucher ouvre la fiche)
-- [ ] Site : rendu vérifié en largeur mobile, corrigé si nécessaire (sinon noté « rien à changer »)
-- [ ] Le bundle iOS compile ; si `style.css`/`app.js` changent, suffixes `?v=` incrémentés
+- [x] App : un sanctuaire visité s'affiche avec un torii sur pastille olive (calque `visited-torii`, image tirée du tracé de Torii.js ; code et bundle vérifiés, rendu sur iPhone à vérifier par Clément)
+- [x] App : un sanctuaire « À visiter » s'affiche avec une étoile sur pastille céladon (calque `wished-star`, étoile `accentDark` ; rendu sur iPhone à vérifier par Clément)
+- [ ] Les deux sont immédiatement distinguables d'un sanctuaire non visité et l'un de l'autre, à zoom 13-16 — non vérifiable sans iPhone (pastilles 12 / 11, pictogrammes 14 pt) : à contrôler par Clément
+- [ ] Les clusters et la sélection d'un sanctuaire fonctionnent comme avant (toucher ouvre la fiche) — clusters et gestionnaire `onPress` inchangés dans le code ; toucher sur le pictogramme à vérifier sur iPhone
+- [x] Site : rien à changer — vérifié dans le code : `.pin-done .torii` (62 %) et `.pin-wish span` (15 px) ne sont redéfinis par aucune règle `@media` ; pas de navigateur disponible pour une capture
+- [x] Le bundle iOS compile (`iOS Bundled … 1496 modules`, images star/torii ×3 incluses) ; `style.css`/`app.js` inchangés
 
 ## Cas limites
 - Sanctuaire à la fois visité et dans « À visiter » : afficher le torii.
