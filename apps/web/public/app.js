@@ -184,7 +184,7 @@
         <div class="popup-cover" data-cover="${s.id}"><div class="popup-cover-loading"><span>Recherche d'une photo…</span></div></div>
         ${addPhoto}
       </div>
-      <div class="popup-name">${esc(s.name)}</div>${latin}${discoveredHtml(s.id)}${status}
+      <div class="popup-name">${esc(s.name)}</div>${latin}${discoveredHtml(s.id)}${friendVisitsHtml(s.id)}${status}
       <div class="popup-actions">${actions}</div>${loginNote}
       <div class="popup-upload-status" data-upload-status></div>
       <div class="popup-route-row">
@@ -692,7 +692,7 @@
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t === tab));
     document.querySelectorAll('.tab-panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + tab.dataset.tab));
     if (document.body.classList.contains('panel-collapsed')) setCollapsed(false);
-    if (tab.dataset.tab === 'friends') loadFriends();
+    if (tab.dataset.tab === 'friends') { loadFriends(); openFriendsTab(); }
   }));
 
   // Sur mobile, balayer le volet change d'onglet ; depuis le compte, balayer vers la droite
@@ -1275,7 +1275,7 @@
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
     if (!valid || googleToken !== token) { username = undefined; profileInfo = null; friends = null; friendView = null; profileFresh = false; }
     googleToken = valid ? token : null;
-    if (valid) restoreAccountCache(payload.sub);
+    if (valid) { restoreAccountCache(payload.sub); forgetFriendVisits(payload.sub); }
     googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
     // Connecté, la collection est synchronisée : Sauvegarder / Restaurer deviennent inutiles.
     document.body.classList.toggle('signed-in', !!valid);
@@ -1390,7 +1390,8 @@
     await Promise.race([attempt, new Promise((resolve) => setTimeout(resolve, 8000))]);
   }
 
-  // Vide la mémoire et le navigateur : visites, liste « À visiter », passages, photos, profil, amis.
+  // Vide la mémoire et le navigateur : visites, liste « À visiter », passages, photos, profil, amis
+  // (et leurs visites sur la carte).
   // Appelée seulement par « Se déconnecter » (pas à l'expiration du jeton, renouvelé en silence).
   // Les préférences d'affichage (panneau, volet) sont gardées.
   function clearLocalCollection() {
@@ -1412,8 +1413,9 @@
     friendsError = '';
     friendQuery = '';
     try {
-      [STORAGE_KEY, DELETED_KEY, WISH_KEY, WISH_DELETED_KEY, SIGHTINGS_KEY, PHOTO_STORE_KEY, PROFILE_KEY, FRIENDS_KEY].forEach((k) => localStorage.removeItem(k));
+      [STORAGE_KEY, DELETED_KEY, WISH_KEY, WISH_DELETED_KEY, SIGHTINGS_KEY, PHOTO_STORE_KEY, PROFILE_KEY, FRIENDS_KEY, FRIENDS_SEEN_KEY].forEach((k) => localStorage.removeItem(k));
     } catch { /* ignore */ }
+    forgetFriendVisits();
     map.closePopup();
     ids.forEach((id) => { if (markers.has(id)) placeMarker(id); });
     if (shrines.length) refreshPanels();
@@ -1501,7 +1503,7 @@
       </div>`).join('')}
       ${shown.map((f) => `<button type="button" class="friend-card" data-friends="view" data-name="${esc(f.username)}">
         ${avatarHtml(50, f)}
-        <span class="friend-text"><b>@${esc(f.username)}</b><small>${f.last && byId.has(f.last.id) ? esc(byId.get(f.last.id).name) : 'Pas encore de visite'}</small></span>
+        <span class="friend-text"><b>@${esc(f.username)}${friendNews[f.username] ? ` <span class="friend-new">${friendNews[f.username]} nouvelle${friendNews[f.username] > 1 ? 's' : ''}</span>` : ''}</b><small>${f.last && byId.has(f.last.id) ? esc(byId.get(f.last.id).name) : 'Pas encore de visite'}</small></span>
         <span class="friend-torii">${TORII}<span class="friend-count">${f.count}</span></span>
       </button>`).join('')}
       ${q.length >= 3 && !known ? `<button type="button" class="friend-card invite" data-friends="add" data-name="${esc(q)}">
@@ -1597,6 +1599,7 @@
         saveProfileCache();
         renderAccount();
         loadFriends();
+        loadFriendVisits();
       } catch { /* réessayé à la prochaine synchro */ }
     })().finally(() => { profileLoading = null; });
     return profileLoading;
@@ -1612,6 +1615,144 @@
   function silentLogin() {
     try { if (googleClientId && window.google && localStorage.getItem(LOGGED_KEY)) google.accounts.id.prompt(); } catch { /* ignore */ }
   }
+
+  // ---------- Visites des amis sur la carte (api/friends.js?visits=1, shared/friendvisits.js) ----------
+  // Chargées une fois (connexion, onglet Amis, retour sur l'appli) et gardées en mémoire seulement.
+  // Sur la carte : 3 photos d'amis au plus puis « +N », au-dessus des sanctuaires de la zone affichée
+  // (zoom 11 et plus, sanctuaire sorti de sa bulle, 150 pastilles au plus). Pastille de l'onglet
+  // Amis : visites d'amis postérieures au dernier passage dans cet onglet (date propre au compte).
+  const FV = JinjaFriendVisits;
+  const FRIENDS_SEEN_KEY = 'jinja-collection:friends-seen';
+  const SHOW_FRIEND_VISITS_KEY = 'jinja-collection:show-friend-visits';
+  let friendVisits = null; // { idSanctuaire: [{ username, avatar, date }] }, visite la plus récente d'abord
+  let friendVisitsSub = null; // compte pour lequel elles ont été chargées
+  let friendVisitsLoading = null;
+  let friendNews = {}; // nom → nouvelles visites vues à la dernière ouverture de l'onglet Amis
+  let showFriendVisits = (() => { try { return localStorage.getItem(SHOW_FRIEND_VISITS_KEY) !== '0'; } catch { return true; } })();
+  map.createPane('friendVisits').style.zIndex = 650;
+  const friendLayer = L.layerGroup().addTo(map);
+  const friendPins = new Map(); // id du sanctuaire → marqueur de la pastille
+
+  function loadFriendVisits() {
+    if (!googleToken || !username) return Promise.resolve();
+    if (friendVisitsLoading) return friendVisitsLoading;
+    const epoch = syncEpoch, sub = accountSub();
+    friendVisitsLoading = friendsApi('GET', null, '?visits=1')
+      .then((data) => {
+        if (epoch !== syncEpoch || sub !== accountSub()) return; // déconnecté ou autre compte entre-temps
+        friendVisits = data.shrines || {};
+        friendVisitsSub = sub;
+        drawFriendVisits();
+        updateFriendsBadge();
+      })
+      .catch(() => { /* hors ligne, pas de nom d'utilisateur : rien de plus à afficher */ })
+      .finally(() => { friendVisitsLoading = null; });
+    return friendVisitsLoading;
+  }
+
+  // Autre compte (ou déconnexion, sub = null) : plus rien de l'ancien compte ne reste affiché.
+  function forgetFriendVisits(sub = null) {
+    if (sub && sub === friendVisitsSub) return;
+    friendVisits = null;
+    friendVisitsSub = null;
+    friendNews = {};
+    drawFriendVisits();
+    updateFriendsBadge();
+  }
+
+  function friendStackHtml(list) {
+    const { shown, more } = FV.stack(list);
+    return `<span class="friend-stack">${shown.map((f) => (f.avatar
+      ? `<img src="${esc(f.avatar)}" alt="">`
+      : `<span class="fs-initial">${esc(FV.initial(f.username))}</span>`)).join('')}${more ? `<span class="fs-more">+${more}</span>` : ''}</span>`;
+  }
+
+  // Une pastille n'est dessinée que si le marqueur du sanctuaire est lui-même affiché (pas dans une bulle).
+  const shownOnMap = (id) => {
+    const m = markers.get(id);
+    return !!m && groupOf(id).getVisibleParent(m) === m;
+  };
+
+  function drawFriendVisits() {
+    const b = map.getBounds();
+    const want = showFriendVisits && friendVisits
+      ? FV.visible(friendVisits, (id) => byId.get(id), { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() },
+        { zoom: map.getZoom(), keep: shownOnMap })
+      : [];
+    const keep = new Set(want);
+    for (const [id, pin] of friendPins) if (!keep.has(id)) { friendLayer.removeLayer(pin); friendPins.delete(id); }
+    for (const id of want) {
+      const html = friendStackHtml(friendVisits[id]);
+      const pin = friendPins.get(id);
+      if (pin) { if (pin.html !== html) { pin.setIcon(L.divIcon({ className: 'friend-pin', html, iconSize: null, iconAnchor: [-6, 38] })); pin.html = html; } continue; }
+      const s = byId.get(id);
+      // En haut à droite du marqueur : le torii ou l'étoile restent visibles ; un clic ouvre la fiche.
+      const m = L.marker([s.lat, s.lon], {
+        pane: 'friendVisits', icon: L.divIcon({ className: 'friend-pin', html, iconSize: null, iconAnchor: [-6, 38] }),
+        title: `Visité par ${FV.joinFr(friendVisits[id].map((f) => '@' + f.username))}`, keyboard: false,
+      });
+      m.html = html;
+      m.on('click', () => { const sm = markers.get(id); if (sm) openShrinePopup(sm); });
+      friendPins.set(id, m);
+      friendLayer.addLayer(m);
+    }
+  }
+  map.on('moveend', drawFriendVisits);
+  [cluster, wishLayer, visitedLayer].forEach((g) => g.on('animationend', drawFriendVisits));
+
+  // Fiche du sanctuaire : tous les amis qui l'ont visité, avec la date.
+  function friendVisitsHtml(id) {
+    const list = friendVisits?.[id];
+    if (!list?.length) return '';
+    const names = list.map((f) => `<b>@${esc(f.username)}</b> (${new Date(f.date).toLocaleDateString('fr-FR')})`);
+    return `<div class="popup-friends">Visité par ${FV.joinFr(names)}</div>`;
+  }
+
+  // Case « Visites des amis » sur la carte (comptes connectés) : réglage gardé dans ce navigateur.
+  const FriendVisitsControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+      const label = L.DomUtil.create('label', 'friend-toggle');
+      label.innerHTML = `<input type="checkbox"${showFriendVisits ? ' checked' : ''}> Visites des amis`;
+      L.DomEvent.disableClickPropagation(label);
+      label.querySelector('input').addEventListener('change', (e) => {
+        showFriendVisits = e.target.checked;
+        try { localStorage.setItem(SHOW_FRIEND_VISITS_KEY, showFriendVisits ? '1' : '0'); } catch { /* ignore */ }
+        drawFriendVisits();
+      });
+      return label;
+    },
+  });
+  map.addControl(new FriendVisitsControl());
+
+  const friendsTabOpen = () => document.querySelector('.tab.active')?.dataset.tab === 'friends' && !document.body.classList.contains('account-open');
+
+  // Pastille de l'onglet Amis. Premier chargement sur ce compte : la date de passage est
+  // initialisée, sans pastille.
+  function updateFriendsBadge() {
+    let n = 0;
+    if (friendVisits) {
+      const seen = readAccountCache(FRIENDS_SEEN_KEY);
+      if (!seen) writeAccountCache(FRIENDS_SEEN_KEY, new Date().toISOString());
+      else if (!friendsTabOpen()) n = FV.newVisits(friendVisits, seen).total;
+    }
+    $('#friends-new').textContent = n;
+    $('#friends-new').hidden = !n;
+  }
+
+  // Ouverture de l'onglet Amis : visites relues, nouvelles visites notées sur chaque ami, puis
+  // la pastille disparaît (date de passage mise à jour).
+  async function openFriendsTab() {
+    $('#friends-new').hidden = true;
+    await loadFriendVisits();
+    if (!friendVisits || !googleToken) return;
+    const seen = readAccountCache(FRIENDS_SEEN_KEY);
+    friendNews = seen ? FV.newVisits(friendVisits, seen).byFriend : {};
+    writeAccountCache(FRIENDS_SEEN_KEY, new Date().toISOString());
+    updateFriendsBadge();
+    renderFriendList();
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFriendVisits(); });
 
   // Ouvre le menu et met en évidence l'encart de connexion.
   // ---------- Écran du compte ----------
