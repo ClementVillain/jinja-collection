@@ -98,6 +98,9 @@ button.friend-card:hover { filter: brightness(0.97); }
 .friend-torii .torii { width: 22px; height: 22px; fill: currentColor; }
 .friend-count { position: absolute; right: -6px; bottom: -6px; min-width: 22px; height: 22px; padding: 0 5px; display: grid; place-items: center; border-radius: 11px; border: 2px solid var(--paper-2); background: var(--accent-strong); color: #fff; font-size: 11px; font-weight: 700; }
 .friend-pending { margin: 4px 0; font-size: 13px; color: var(--muted); }
+.friend-card.skeleton .sk-avatar { flex: 0 0 50px; height: 50px; border-radius: 50%; background: var(--line); }
+.friend-card.skeleton .sk-line { display: block; height: 14px; width: 45%; border-radius: 6px; background: var(--line); }
+.friend-card.skeleton .sk-line.sub { height: 11px; width: 70%; margin-top: 6px; }
 .avatar-ring { position: relative; display: inline-block; border: 4px solid #fff; border-radius: 50%; background: #fff; line-height: 0; }
 .stats.stats-4 { grid-template-columns: repeat(2, 1fr); }
 .last-card .card-thumb { width: 100%; }
