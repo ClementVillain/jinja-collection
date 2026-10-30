@@ -18,7 +18,8 @@ Ce fichier n'est pas publié sur le site (`docs/` est dans `.vercelignore`).
 
 ## Versions (SemVer, avant la 1.0)
 
-Le numéro vit à trois endroits, toujours identiques : `package.json`, `mobile/package.json` et
+Le numéro vit à quatre endroits, toujours identiques : `package.json`, `mobile/package.json`,
+`mobile/package-lock.json` (champ `version`, deux fois) et
 `mobile/app.json` (`expo.version`, plus `expo.ios.buildNumber` incrémenté de 1 à chaque version).
 
 - `0.x.y` → `0.x.(y+1)` : la version ne contient que des correctifs.
