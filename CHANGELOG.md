@@ -7,6 +7,8 @@ Règles de travail : voir `docs/git-flow.md`.
 
 ## [Non publié]
 
+## [0.9.0] - 2026-10-30
+
 ### Fonctionnalités
 - Dépôt réorganisé : `apps/web` (site et serveur), `apps/mobile` (app iOS) et `packages/shared` (données des sanctuaires et logique communes, qui n'existent plus en double). Le site ne publie plus que ses fichiers publics : le code serveur et les tests ne sont plus téléchargeables.
 
