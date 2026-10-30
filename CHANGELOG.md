@@ -9,6 +9,7 @@ Règles de travail : voir `docs/git-flow.md`.
 
 ### Fonctionnalités
 - App Android : configuration de compilation (EAS Build) produisant un APK installable.
+- App Android : menus de choix, partage avec lien, police Lato et ombres adaptés à Android ; connexion Apple masquée.
 
 ## [0.9.0] - 2026-10-30
 

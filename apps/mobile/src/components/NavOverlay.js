@@ -121,7 +121,7 @@ export default function NavOverlay({ nav, onStop, onRecenter, onVisit, isVisited
 }
 
 const styles = StyleSheet.create({
-  top: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.ink, paddingHorizontal: 16, paddingBottom: 14, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10 },
+  top: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: colors.ink, paddingHorizontal: 16, paddingBottom: 14, elevation: 6, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   arrow: { width: 58, height: 58, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' },
   arriveIcon: { fontSize: 34, color: '#fff' },
@@ -130,14 +130,14 @@ const styles = StyleSheet.create({
   then: { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginTop: 4 },
   msg: { color: '#fff', fontSize: 13, marginTop: 8, opacity: 0.9 },
   msgError: { color: '#ffd7cf', fontWeight: '700' },
-  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12, backgroundColor: colors.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12 },
+  bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingTop: 12, backgroundColor: colors.paper, borderTopLeftRadius: 18, borderTopRightRadius: 18, elevation: 6, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12 },
   eta: { fontSize: 18, fontWeight: '800', color: colors.ink },
   etaSub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   stop: { backgroundColor: colors.accentStrong, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 10 },
   stopText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  recenter: { position: 'absolute', alignSelf: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 22, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6 },
+  recenter: { position: 'absolute', alignSelf: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 22, elevation: 6, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6 },
   recenterText: { fontWeight: '700', color: colors.ink },
-  arriveCard: { position: 'absolute', left: 16, right: 16, bottom: 120, backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 10, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12 },
+  arriveCard: { position: 'absolute', left: 16, right: 16, bottom: 120, backgroundColor: '#fff', borderRadius: 16, padding: 16, gap: 10, elevation: 6, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 12 },
   arriveTitle: { fontFamily: fonts.serif, fontSize: 18, fontWeight: '700', color: colors.ink },
   visitBtn: { backgroundColor: colors.accentStrong, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   visitText: { color: '#fff', fontWeight: '700', fontSize: 16 },

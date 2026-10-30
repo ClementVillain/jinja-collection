@@ -2,12 +2,13 @@
 // et romaji, « J'y suis allé » / « À visiter », « Y aller », « Partager » (lien vers le site),
 // lien Google Maps, et partage d'une photo prise sur place.
 import { useEffect, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Dimensions, FlatList, Image, Linking, Pressable, Share, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Image, Linking, Platform, Pressable, Share, StyleSheet, View } from 'react-native';
 import Text from './Text';
 import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import ShrineCard from '@jinja/shared/card';
+import { showActionSheet } from '../lib/actionSheet';
 import { coverSlides, creditOf, forgetPhoto, rememberAuthor } from '../lib/photos';
 import { fmtDate, latinName } from '../lib/text';
 import { useCollection } from '../state/CollectionContext';
@@ -20,9 +21,12 @@ const COVER_H = 190;
 const SITE_URL = 'https://jinja-collection.vercel.app/';
 const SHARE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="${colors.ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>`;
 
-// Feuille de partage iOS : nom du sanctuaire et lien https (partage annulé : rien à faire).
+// Feuille de partage : nom du sanctuaire et lien https (partage annulé : rien à faire).
+// Android ignore `url` : le lien y fait partie du message.
 function shareShrine(shrine) {
-  Share.share({ message: `${shrine.name} — Jinja Collection`, url: `${SITE_URL}?s=${encodeURIComponent(shrine.id)}` }).catch(() => {});
+  const message = `${shrine.name} — Jinja Collection`;
+  const url = `${SITE_URL}?s=${encodeURIComponent(shrine.id)}`;
+  Share.share(Platform.OS === 'android' ? { message: `${message}\n${url}` } : { message, url }).catch(() => {});
 }
 
 function CameraPlus({ size = 22 }) {
@@ -132,7 +136,7 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
 
   const addPhoto = () => {
     if (!c.user) { onLoginHint(); return; }
-    ActionSheetIOS.showActionSheetWithOptions(
+    showActionSheet(
       { options: ['Prendre une photo', 'Choisir dans la photothèque', 'Annuler'], cancelButtonIndex: 2, title: 'Partager une photo de ce sanctuaire' },
       (i) => { if (i === 0) pick('camera'); else if (i === 1) pick('library'); },
     );
@@ -224,7 +228,7 @@ const styles = StyleSheet.create({
   dots: { position: 'absolute', top: 10, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 5 },
   dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.55)' },
   dotOn: { backgroundColor: '#fff' },
-  addBtn: { position: 'absolute', right: 8, bottom: 8, width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
+  addBtn: { position: 'absolute', right: 8, bottom: 8, width: 38, height: 38, borderRadius: 19, elevation: 4, backgroundColor: 'rgba(255,255,255,0.94)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 1 } },
   addBtnCenter: { right: undefined, bottom: undefined, alignSelf: 'center', top: COVER_H / 2 - 30, width: 60, height: 60, borderRadius: 30 },
   close: { position: 'absolute', top: 8, right: 24, width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   closeText: { color: '#fff', fontSize: 15, fontWeight: '700' },

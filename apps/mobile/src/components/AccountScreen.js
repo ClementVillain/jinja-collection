@@ -3,13 +3,14 @@
 // Connecté : grand avatar, nom, « Membre depuis… », statistiques, nom public et amis,
 // sanctuaires découverts en premier.
 import { useMemo, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Alert, Image, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ImageBackground, Platform, Pressable, StyleSheet, View } from 'react-native';
 import Text, { withFont } from './Text';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { SvgXml } from 'react-native-svg';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { byId, prefectures, useCollection } from '../state/CollectionContext';
+import { showActionSheet } from '../lib/actionSheet';
 import { latinName } from '../lib/text';
 import Torii from './Torii';
 import { colors, fonts } from '../theme';
@@ -103,10 +104,12 @@ function SignedOut({ onBack }) {
         <Text style={styles.googleG}>G</Text>
         <Text style={styles.googleText}>Se connecter avec Google</Text>
       </Pressable>
-      <Pressable style={[styles.bigBtn, styles.appleBtn]} onPress={apple}>
-        <Text style={styles.appleLogo}></Text>
-        <Text style={styles.appleText}>Se connecter avec Apple</Text>
-      </Pressable>
+      {Platform.OS === 'ios' ? (
+        <Pressable style={[styles.bigBtn, styles.appleBtn]} onPress={apple}>
+          <Text style={styles.appleLogo}></Text>
+          <Text style={styles.appleText}>Se connecter avec Apple</Text>
+        </Pressable>
+      ) : null}
       {c.syncStatus.error ? <Text style={styles.error}>{c.syncStatus.text}</Text> : null}
       <Pressable onPress={onBack}><Text style={styles.back}>Continuer sans compte</Text></Pressable>
     </View>
@@ -151,7 +154,7 @@ function SignedIn({ onSelect, onBack }) {
     const options = ['Choisir dans la photothèque', 'Prendre une photo'];
     if (has) options.push(kind === 'avatar' ? 'Revenir à la photo Google' : 'Revenir à la bannière par défaut');
     options.push('Annuler');
-    ActionSheetIOS.showActionSheetWithOptions(
+    showActionSheet(
       { options, cancelButtonIndex: options.length - 1, destructiveButtonIndex: has ? options.length - 2 : undefined, title: kind === 'avatar' ? 'Photo de profil' : 'Bannière' },
       (i) => {
         if (i === 0) pick(kind, 'library');
