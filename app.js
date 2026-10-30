@@ -189,6 +189,7 @@
       <div class="popup-upload-status" data-upload-status></div>
       <div class="popup-route-row">
         <button type="button" class="popup-route popup-go" data-action="navigate" data-id="${s.id}">➤ Y aller</button>
+        <button type="button" class="ghost small popup-share" data-action="share" data-id="${s.id}" title="Partager ce sanctuaire">${SHARE_ICON}<span>Partager</span></button>
       </div>
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>`;
@@ -645,7 +646,46 @@
     else if (action === 'wish') toggleWish(id);
     else if (action === 'login-hint') { map.closePopup(); showAccount(); }
     else if (action === 'navigate') JinjaNav.start({ stops: [byId.get(id)], mode: routeMode });
+    else if (action === 'share') shareShrine(id, btn);
   });
+
+  // ---------- Partage ----------
+  // Lien https://jinja-collection.vercel.app/?s=<id> : ouvre le site centré sur le sanctuaire,
+  // avec sa fiche. Sur téléphone, feuille de partage du système ; sinon, lien copié.
+  const SITE_URL = 'https://jinja-collection.vercel.app/';
+  const SHARE_ICON = '<svg class="share-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>';
+  const SHRINE_ID = /^[a-z]\d+$/;
+  const shareUrl = (id) => `${SITE_URL}?s=${encodeURIComponent(id)}`;
+
+  async function shareShrine(id, btn) {
+    const s = byId.get(id);
+    if (!s) return;
+    const url = shareUrl(id);
+    if (navigator.share && isMobile()) {
+      try { await navigator.share({ title: s.name, text: `Découvre ${s.name} sur Jinja Collection`, url }); } catch { /* partage annulé */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      prompt('Copie ce lien pour partager le sanctuaire :', url); // presse-papiers refusé
+      return;
+    }
+    const label = btn.querySelector('span');
+    label.textContent = 'Lien copié ✓';
+    setTimeout(() => { label.textContent = 'Partager'; }, 2000);
+  }
+
+  // Arrivée par un lien partagé : fiche du sanctuaire ouverte, puis ?s= retiré de l'adresse.
+  function openSharedShrine() {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('s');
+    if (id === null) return;
+    params.delete('s');
+    const rest = params.toString();
+    history.replaceState(history.state, '', `${location.pathname}${rest ? `?${rest}` : ''}${location.hash}`);
+    if (SHRINE_ID.test(id) && byId.has(id)) focusShrine(id);
+  }
 
   // ---------- Panneau ----------
   document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => {
@@ -1885,6 +1925,7 @@
       wishLayer.addLayers(wished);
       visitedLayer.addLayers(done);
       refreshPanels();
+      openSharedShrine();
     })
     .catch((err) => {
       $('#progress').textContent = 'Erreur de chargement des sanctuaires (' + err.message + '). Lance un serveur local : voir README.';
