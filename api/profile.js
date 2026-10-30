@@ -14,10 +14,14 @@ module.exports = async (req, res) => {
     const uid = publicId(user.sub);
     if (req.method === 'GET') {
       // Première visite connue : sert de date d'inscription aux comptes plus anciens que « members/ ».
-      const saved = await loadState(user.sub).catch(() => null);
-      const firstVisit = Object.values(saved?.state?.visits || {}).map((v) => v.date).sort()[0];
+      // Lue seulement si cette date n'est pas encore enregistrée (le reste part en parallèle).
+      const firstVisit = async () => {
+        const saved = await loadState(user.sub).catch(() => null);
+        const first = Object.values(saved?.state?.visits || {}).map((v) => v.date).sort()[0];
+        return first ? [first] : [];
+      };
       const [username, since, rel, images] = await Promise.all([
-        usernameOf(uid), memberSince(uid, firstVisit ? [firstVisit] : []), relations(uid).catch(() => ({ friends: [] })),
+        usernameOf(uid), memberSince(uid, firstVisit), relations(uid).catch(() => ({ friends: [] })),
         profileImages(uid).catch(() => ({ avatar: null, banner: null })),
       ]);
       return res.status(200).json({ username, since, friends: rel.friends.length, ...images });
