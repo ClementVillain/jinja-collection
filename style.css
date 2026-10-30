@@ -333,6 +333,8 @@ body.signed-in #export-btn { display: none; }
 /* « Y aller » : navigation intégrée, plus visible que le lien Google. */
 .popup-route.popup-go { flex: 1.2; border-color: var(--ink); background: var(--ink); color: #fff !important; font-weight: 700; }
 .popup-route.popup-go:hover { background: var(--accent-dark); color: #fff !important; }
+.popup-share { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+.popup-share .share-icon { width: 14px; height: 14px; flex: none; }
 .popup-upload-status { font-size: 12px; margin-top: 6px; color: var(--muted); }
 .popup-upload-status:empty { display: none; }
 .popup-upload-status.ok { color: var(--accent-strong); }
