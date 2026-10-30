@@ -198,9 +198,10 @@ export function CollectionProvider({ children }) {
     const payload = token && jwtPayload(token);
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
     if (!valid || tokenRef.current !== token) setUsernameState(undefined);
+    // Autre compte (ou plus de compte) : le profil précédent ne reste pas affiché.
+    if (!valid || jwtPayload(tokenRef.current || '')?.sub !== payload.sub) setProfile(null);
     tokenRef.current = valid ? token : null;
-    if (!valid) setProfile(null);
-    else restoreProfile(payload.sub);
+    if (valid) restoreProfile(payload.sub);
     const apple = valid && payload.iss === 'https://appleid.apple.com';
     setUser(valid ? {
       name: apple ? (appleName.current || 'Compte Apple') : payload.name || payload.email,
