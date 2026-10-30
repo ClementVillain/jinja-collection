@@ -6,7 +6,7 @@
 //      add : demande (ou acceptation si l'autre a déjà demandé) ; remove : retire, annule ou refuse
 // Seuls les noms d'utilisateur circulent : ni e-mail, ni identifiant Google.
 const { verifyGoogleUser } = require('../lib/auth');
-const { publicId, allNames, uidOfName, normalizeName, memberSince, profileImages } = require('../lib/profiles');
+const { publicId, allNames, uidOfName, normalizeName, memberSince, profileImages, allProfileImages } = require('../lib/profiles');
 const { relations, addFriend, removeFriend, readShared, summary } = require('../lib/friends');
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
@@ -16,6 +16,11 @@ module.exports = async (req, res) => {
   try {
     const user = await verifyGoogleUser(req);
     const me = publicId(user.sub);
+    // Liste d'amis : relations et photos (une seule liste pour tous les amis, au lieu d'une
+    // par ami) sont lues en même temps que les noms.
+    const listing = req.method === 'GET' && !req.query.user
+      ? Promise.all([relations(me), allProfileImages().catch(() => new Map())]) : null;
+    listing?.catch(() => {}); // erreur traitée plus bas, si on va jusque-là
     const { nameOf } = await allNames();
     if (!nameOf.has(me)) throw fail(403, "Choisis d'abord ton nom d'utilisateur");
     const named = (uids) => uids.filter((u) => nameOf.has(u));
@@ -33,11 +38,11 @@ module.exports = async (req, res) => {
       return res.status(200).json({ username: nameOf.get(other), visits, since, friends: rel.friends.length, ...images });
     }
     if (req.method === 'GET') {
-      const rel = await relations(me);
+      const [rel, images] = await listing;
       const friends = await Promise.all(named(rel.friends).map(async (u) => ({
         username: nameOf.get(u),
         ...summary(await readShared(u).catch(() => ({ visits: {} }))),
-        avatar: (await profileImages(u).catch(() => ({}))).avatar || null,
+        avatar: images.get(u)?.avatar || null,
       })));
       return res.status(200).json({
         friends: friends.sort((a, b) => a.username.localeCompare(b.username)),

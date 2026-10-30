@@ -7,6 +7,9 @@ Règles de travail : voir `docs/git-flow.md`.
 
 ## [Non publié]
 
+### Fonctionnalités
+- Chargement plus rapide de la photo de profil, de la bannière et de la liste d'amis (site et app) : affichage immédiat de la dernière version connue, images plus légères, liste d'amis obtenue en moins de requêtes.
+
 ## [0.8.0] - 2026-10-30
 
 Première version numérotée : état du site et de l'app iOS au passage à git flow.
