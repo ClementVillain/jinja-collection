@@ -2,3 +2,7 @@
 node_modules/
 .vercel
 .env*
+
+# Copiés depuis packages/shared par apps/web/scripts/build.mjs
+apps/web/public/shared/
+apps/web/public/data/

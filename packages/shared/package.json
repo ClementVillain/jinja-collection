@@ -1,0 +1,12 @@
+{
+  "name": "@jinja/shared",
+  "private": true,
+  "description": "Données et logique communes au site et à l'app : sanctuaires, fusion, proximité, circuits, carte postale",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "kuroshiro": "^1.2.0",
+    "kuroshiro-analyzer-kuromoji": "^1.1.0"
+  }
+}

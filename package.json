@@ -4,14 +4,10 @@
   "private": true,
   "description": "Carte des sanctuaires shintō du Japon à collectionner",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "test": "npm test --workspaces"
   },
-  "dependencies": {
-    "@vercel/blob": "^2.8.2",
-    "jose": "^6.2.13"
-  },
-  "devDependencies": {
-    "kuroshiro": "^1.2.0",
-    "kuroshiro-analyzer-kuromoji": "^1.1.0"
-  }
+  "workspaces": [
+    "apps/web",
+    "packages/shared"
+  ]
 }
