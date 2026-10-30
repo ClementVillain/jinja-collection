@@ -271,6 +271,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
             <Text style={[styles.tabText, tab === k && { color: colors.accentStrong }]}>{label}</Text>
             {k === 'wish' ? <View style={[styles.badge, { backgroundColor: colors.accent }]}><Text style={styles.badgeText}>{wishItems.length}</Text></View> : null}
             {k === 'collection' ? <View style={styles.badge}><Text style={styles.badgeText}>{n}</Text></View> : null}
+            {k === 'friends' && c.friendsBadge ? <View style={[styles.badge, { backgroundColor: colors.soft }]} accessibilityLabel="Nouvelles visites de tes amis"><Text style={[styles.badgeText, { color: colors.ink }]}>{c.friendsBadge}</Text></View> : null}
           </Pressable>
         ))}
       </View>

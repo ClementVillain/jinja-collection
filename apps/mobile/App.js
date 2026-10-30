@@ -38,6 +38,8 @@ function Main() {
   const [friend, setFriend] = useState(null);
   // Déconnexion : le profil d'ami ouvert se ferme.
   useEffect(() => { setFriend(null); }, [c.signOuts]);
+  // Onglet Amis ouvert : la pastille des nouvelles visites d'amis disparaît.
+  useEffect(() => { c.setFriendsTabOpen(tab === 'friends'); }, [tab, c.username]);
   // Écran du compte (avatar en haut à droite du volet), affiché en plein écran.
   const [account, setAccountState] = useState(false);
   const setAccount = (open) => {
@@ -136,11 +138,28 @@ function Main() {
         showUser={showUser}
         onUserPan={() => { if (nav) setFollowing(false); }}
         getPadding={() => centerPadding(nav ? -1 : sheetIndex.current)}
+        friendVisits={c.friendVisits}
+        showFriendVisits={c.showFriendVisits}
       />
 
       {!nav ? (
         <Pressable style={[styles.locate, { top: insets.top + 10 }]} onPress={locate} accessibilityLabel="Me localiser">
           <Text style={styles.locateText}>◎</Text>
+        </Pressable>
+      ) : null}
+      {/* Case « Visites des amis » : masque ou affiche les photos d'amis sur la carte (réglage du téléphone). */}
+      {!nav && c.user && c.username ? (
+        <Pressable
+          style={[styles.friendToggle, { top: insets.top + 18 }]}
+          onPress={() => c.setShowFriendVisits(!c.showFriendVisits)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: c.showFriendVisits }}
+          hitSlop={6}
+        >
+          <View style={[styles.check, c.showFriendVisits && styles.checkOn]}>
+            {c.showFriendVisits ? <Text style={styles.checkMark}>✓</Text> : null}
+          </View>
+          <Text style={styles.friendToggleText}>Visites des amis</Text>
         </Pressable>
       ) : null}
 
@@ -225,6 +244,11 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.paper },
   locate: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 1 } },
   locateText: { fontSize: 22, color: colors.ink },
+  friendToggle: { position: 'absolute', right: 64, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: '#fff', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 1 } },
+  friendToggleText: { fontSize: 12, fontWeight: '700', color: colors.ink },
+  check: { width: 16, height: 16, borderRadius: 4, borderWidth: 2, borderColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
+  checkOn: { backgroundColor: colors.accentStrong },
+  checkMark: { color: '#fff', fontSize: 10, fontWeight: '700', lineHeight: 12 },
   sheetBg: { backgroundColor: colors.paper, borderRadius: 18 },
   handle: { backgroundColor: colors.line, width: 42 },
 });
