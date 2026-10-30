@@ -1,6 +1,6 @@
 # Git flow et versions
 
-Ce fichier n'est pas publié sur le site (`docs/` est dans `.vercelignore`).
+Ce fichier n'est pas publié sur le site : Vercel ne publie que `apps/web/public/`.
 
 ## Branches
 
@@ -18,9 +18,10 @@ Ce fichier n'est pas publié sur le site (`docs/` est dans `.vercelignore`).
 
 ## Versions (SemVer, avant la 1.0)
 
-Le numéro vit à quatre endroits, toujours identiques : `package.json`, `mobile/package.json`,
-`mobile/package-lock.json` (champ `version`, deux fois) et
-`mobile/app.json` (`expo.version`, plus `expo.ios.buildNumber` incrémenté de 1 à chaque version).
+Le numéro vit à quatre endroits, toujours identiques : `package.json` (racine), `apps/mobile/package.json`,
+`apps/mobile/package-lock.json` (champ `version`, deux fois) et
+`apps/mobile/app.json` (`expo.version`, plus `expo.ios.buildNumber` incrémenté de 1 à chaque version).
+`apps/web` et `packages/shared` n'ont pas de numéro propre.
 
 - `0.x.y` → `0.x.(y+1)` : la version ne contient que des correctifs.
 - `0.x.y` → `0.(x+1).0` : la version contient au moins une fonctionnalité ou une amélioration visible.
@@ -40,7 +41,7 @@ Messages en français, à l'impératif ou au nominatif, préfixés par la zone q
 
 ## Release
 
-1. `release/x.y.z` depuis `develop` : numéro de version aux trois endroits, `buildNumber` + 1,
+1. `release/x.y.z` depuis `develop` : numéro de version aux quatre endroits, `buildNumber` + 1,
    section `[Non publié]` → `[x.y.z] - date`.
 2. PR `release/x.y.z` → `main`, titre « Version x.y.z », corps = notes de version.
 3. Après la fusion : tag annoté `vx.y.z` sur `main`, puis PR (ou fusion) `main` → `develop`

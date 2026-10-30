@@ -1,0 +1,14 @@
+{
+  "name": "@jinja/web",
+  "private": true,
+  "description": "Site Jinja Collection (public/) et fonctions serveur Vercel (api/)",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs && python3 -m http.server 8642 -d public",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.2",
+    "jose": "^6.2.13"
+  }
+}
