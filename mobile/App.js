@@ -3,7 +3,7 @@
 // postale pour chacun, prépare des circuits et laisse-toi guider jusqu'à eux.
 import 'react-native-gesture-handler';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Keyboard, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Alert, Keyboard, Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Text from './src/components/Text';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -84,6 +84,23 @@ function Main() {
     setSelectedId(id);
     map.current?.flyTo(s.lat, s.lon, 15, centerPadding(revealMap(SNAP.half)));
   }, [centerPadding, revealMap]);
+
+  // Lien jinjacollection://?s=<id> (ou lien du site) : ouvre la fiche du sanctuaire, que l'app
+  // soit lancée par le lien ou déjà ouverte. La carte est laissée le temps de s'afficher.
+  const selectRef = useRef(select);
+  selectRef.current = select;
+  useEffect(() => {
+    if (!c.ready) return undefined;
+    const open = (url) => {
+      const m = /[?&]s=([^&#]+)/.exec(url || '');
+      let id = null;
+      try { id = m && decodeURIComponent(m[1]); } catch { /* lien mal formé */ }
+      if (id && /^[a-z]\d+$/.test(id) && byId.has(id)) setTimeout(() => selectRef.current(id), 400);
+    };
+    Linking.getInitialURL().then(open).catch(() => {});
+    const sub = Linking.addEventListener('url', ({ url }) => open(url));
+    return () => sub.remove();
+  }, [c.ready]);
 
   const locate = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();

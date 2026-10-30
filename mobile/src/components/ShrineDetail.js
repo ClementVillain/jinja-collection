@@ -1,8 +1,8 @@
 // Fiche d'un sanctuaire (équivalent de la popup du site) : carrousel de photos, nom en kanji
-// et romaji, « J'y suis allé » / « À visiter », « Y aller », lien Google Maps, et partage
-// d'une photo prise sur place.
+// et romaji, « J'y suis allé » / « À visiter », « Y aller », « Partager » (lien vers le site),
+// lien Google Maps, et partage d'une photo prise sur place.
 import { useEffect, useState } from 'react';
-import { ActionSheetIOS, ActivityIndicator, Dimensions, FlatList, Image, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Dimensions, FlatList, Image, Linking, Pressable, Share, StyleSheet, View } from 'react-native';
 import Text from './Text';
 import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,6 +15,15 @@ import Torii from './Torii';
 import { colors, fonts } from '../theme';
 
 const COVER_H = 190;
+
+// Lien partagé : ouvre le site sur ce sanctuaire (voir la section « Partage » de app.js).
+const SITE_URL = 'https://jinja-collection.vercel.app/';
+const SHARE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="${colors.ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>`;
+
+// Feuille de partage iOS : nom du sanctuaire et lien https (partage annulé : rien à faire).
+function shareShrine(shrine) {
+  Share.share({ message: `${shrine.name} — Jinja Collection`, url: `${SITE_URL}?s=${encodeURIComponent(shrine.id)}` }).catch(() => {});
+}
 
 function CameraPlus({ size = 22 }) {
   return (
@@ -186,9 +195,15 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
       ) : null}
       {status ? <Text style={[styles.upload, status.ok && { color: colors.accentStrong }, status.error && { color: colors.danger }]}>{status.text}</Text> : null}
 
-      <Pressable style={[styles.btn, styles.go]} onPress={() => onNavigate(shrine)}>
-        <Text style={styles.goText}>➤ Y aller</Text>
-      </Pressable>
+      <View style={styles.routeRow}>
+        <Pressable style={[styles.btn, styles.go]} onPress={() => onNavigate(shrine)}>
+          <Text style={styles.goText}>➤ Y aller</Text>
+        </Pressable>
+        <Pressable style={[styles.btn, styles.ghost, styles.share]} onPress={() => shareShrine(shrine)} accessibilityLabel="Partager ce sanctuaire">
+          <SvgXml xml={SHARE_ICON} width={17} height={17} />
+          <Text style={styles.ghostText}>Partager</Text>
+        </Pressable>
+      </View>
       <Pressable onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${shrine.lat}%2C${shrine.lon}`)}>
         <Text style={styles.gmaps}>Ouvrir dans Google Maps</Text>
       </Pressable>
@@ -229,7 +244,9 @@ const styles = StyleSheet.create({
   discovererText: { fontSize: 12, color: colors.muted },
   unverified: { fontSize: 12, color: '#9a6a00', marginTop: -6, marginBottom: 10 },
   upload: { fontSize: 13, color: colors.muted, marginTop: 8 },
-  go: { flex: 0, marginTop: 10, backgroundColor: colors.ink },
+  routeRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  go: { flex: 1.4, backgroundColor: colors.ink },
+  share: { flexDirection: 'row', gap: 6 },
   goText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   gmaps: { textAlign: 'center', color: colors.muted, fontSize: 13, marginTop: 12, textDecorationLine: 'underline' },
 });

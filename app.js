@@ -189,6 +189,7 @@
       <div class="popup-upload-status" data-upload-status></div>
       <div class="popup-route-row">
         <button type="button" class="popup-route popup-go" data-action="navigate" data-id="${s.id}">➤ Y aller</button>
+        <button type="button" class="ghost small popup-share" data-action="share" data-id="${s.id}" title="Partager ce sanctuaire">${SHARE_ICON}<span>Partager</span></button>
       </div>
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>`;
@@ -645,7 +646,46 @@
     else if (action === 'wish') toggleWish(id);
     else if (action === 'login-hint') { map.closePopup(); showAccount(); }
     else if (action === 'navigate') JinjaNav.start({ stops: [byId.get(id)], mode: routeMode });
+    else if (action === 'share') shareShrine(id, btn);
   });
+
+  // ---------- Partage ----------
+  // Lien https://jinja-collection.vercel.app/?s=<id> : ouvre le site centré sur le sanctuaire,
+  // avec sa fiche. Sur téléphone, feuille de partage du système ; sinon, lien copié.
+  const SITE_URL = 'https://jinja-collection.vercel.app/';
+  const SHARE_ICON = '<svg class="share-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>';
+  const SHRINE_ID = /^[a-z]\d+$/;
+  const shareUrl = (id) => `${SITE_URL}?s=${encodeURIComponent(id)}`;
+
+  async function shareShrine(id, btn) {
+    const s = byId.get(id);
+    if (!s) return;
+    const url = shareUrl(id);
+    if (navigator.share && isMobile()) {
+      try { await navigator.share({ title: s.name, text: `Découvre ${s.name} sur Jinja Collection`, url }); } catch { /* partage annulé */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      prompt('Copie ce lien pour partager le sanctuaire :', url); // presse-papiers refusé
+      return;
+    }
+    const label = btn.querySelector('span');
+    label.textContent = 'Lien copié ✓';
+    setTimeout(() => { label.textContent = 'Partager'; }, 2000);
+  }
+
+  // Arrivée par un lien partagé : fiche du sanctuaire ouverte, puis ?s= retiré de l'adresse.
+  function openSharedShrine() {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('s');
+    if (id === null) return;
+    params.delete('s');
+    const rest = params.toString();
+    history.replaceState(history.state, '', `${location.pathname}${rest ? `?${rest}` : ''}${location.hash}`);
+    if (SHRINE_ID.test(id) && byId.has(id)) focusShrine(id);
+  }
 
   // ---------- Panneau ----------
   document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => {
@@ -1205,6 +1245,9 @@
   // Les visites restent aussi dans le navigateur : la synchro fusionne les deux (voir merge.js).
   const TOKEN_KEY = 'jinja-collection:google-token';
   const LOGGED_KEY = 'jinja-collection:logged-in';
+  // Profil et liste d'amis du compte, gardés pour les afficher avant le réseau (vidés à la déconnexion).
+  const PROFILE_KEY = 'jinja-collection:profile';
+  const FRIENDS_KEY = 'jinja-collection:friends';
   let googleClientId = null;
   let googleToken = null;
   let googleUser = null;
@@ -1216,6 +1259,9 @@
   let syncEpoch = 0;
   // Nom d'utilisateur public (undefined : pas encore lu ; null : pas encore choisi).
   let username;
+  // Profil relu sur le serveur pour ce jeton (sinon : rien, ou seulement le cache) ; requête en cours.
+  let profileFresh = false;
+  let profileLoading = null;
 
   function jwtPayload(token) {
     try {
@@ -1227,8 +1273,9 @@
   function setToken(token) {
     const payload = token && jwtPayload(token);
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
-    if (!valid || googleToken !== token) { username = undefined; friends = null; friendView = null; }
+    if (!valid || googleToken !== token) { username = undefined; profileInfo = null; friends = null; friendView = null; profileFresh = false; }
     googleToken = valid ? token : null;
+    if (valid) restoreAccountCache(payload.sub);
     googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
     // Connecté, la collection est synchronisée : Sauvegarder / Restaurer deviennent inutiles.
     document.body.classList.toggle('signed-in', !!valid);
@@ -1239,6 +1286,28 @@
     renderAccount();
     if (shrines.length) refreshPanels();
     renderFriends();
+  }
+
+  // Cache du compte : { sub, value }, rattaché au compte qui l'a écrit (jamais montré à un autre).
+  const accountSub = () => (googleToken && jwtPayload(googleToken)?.sub) || null;
+  function readAccountCache(key) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(key));
+      return cached?.sub && cached.sub === accountSub() ? cached.value : null;
+    } catch { return null; }
+  }
+  function writeAccountCache(key, value) {
+    const sub = accountSub();
+    try { if (sub) localStorage.setItem(key, JSON.stringify({ sub, value })); } catch { /* stockage plein : tant pis */ }
+  }
+  const saveProfileCache = () => writeAccountCache(PROFILE_KEY, { username, profile: profileInfo });
+
+  // Profil et amis du cache, affichés tout de suite (puis rafraîchis par loadProfile / loadFriends).
+  function restoreAccountCache(sub) {
+    if (accountSub() !== sub) return;
+    const cached = readAccountCache(PROFILE_KEY);
+    if (cached && username === undefined) { username = cached.username; profileInfo = cached.profile || null; }
+    if (!friends) friends = readAccountCache(FRIENDS_KEY);
   }
 
   const syncApi = (method, body) => syncApiAt('/api/sync', method, body);
@@ -1284,6 +1353,7 @@
     if (syncing) { syncAgain = true; return syncing; }
     setSyncStatus('Synchronisation…');
     const epoch = syncEpoch;
+    loadProfile(); // en même temps que la synchro, pas après
     syncing = (async () => {
       const { state: remote } = await syncApi('GET');
       if (epoch !== syncEpoch) return; // déconnecté entre-temps : on ne touche plus à rien
@@ -1297,7 +1367,6 @@
         loadDiscoveries();
       }
       setSyncStatus('Synchronisé ✓');
-      loadProfile();
     })()
       .catch((err) => setSyncStatus('Synchro impossible : ' + err.message, true))
       .finally(() => {
@@ -1343,7 +1412,7 @@
     friendsError = '';
     friendQuery = '';
     try {
-      [STORAGE_KEY, DELETED_KEY, WISH_KEY, WISH_DELETED_KEY, SIGHTINGS_KEY, PHOTO_STORE_KEY].forEach((k) => localStorage.removeItem(k));
+      [STORAGE_KEY, DELETED_KEY, WISH_KEY, WISH_DELETED_KEY, SIGHTINGS_KEY, PHOTO_STORE_KEY, PROFILE_KEY, FRIENDS_KEY].forEach((k) => localStorage.removeItem(k));
     } catch { /* ignore */ }
     map.closePopup();
     ids.forEach((id) => { if (markers.has(id)) placeMarker(id); });
@@ -1367,7 +1436,7 @@
     let list = null, error = '';
     try { list = await friendsApi('GET'); } catch (err) { error = err.message; }
     if (epoch !== syncEpoch) return; // déconnecté entre-temps
-    if (list) friends = list;
+    if (list) { friends = list; writeAccountCache(FRIENDS_KEY, list); }
     friendsError = error;
     renderFriends();
   }
@@ -1415,7 +1484,11 @@
   function renderFriendList() {
     const list = $('#friends-box [data-friend-list]');
     if (!list) return;
-    if (!friends) { list.innerHTML = '<p class="hint">Chargement…</p>'; return; }
+    // Premier chargement : cartes grisées plutôt qu'un écran vide.
+    if (!friends) {
+      list.innerHTML = friendsError ? '' : '<div class="friend-card skeleton" aria-hidden="true"><span class="sk-avatar"></span><span class="friend-text"><span class="sk-line"></span><span class="sk-line sub"></span></span></div>'.repeat(3);
+      return;
+    }
     const q = friendQuery.trim().replace(/^@/, '').toLowerCase();
     const known = [...friends.friends.map((f) => f.username), ...friends.incoming, ...friends.outgoing].some((u) => u.toLowerCase() === q);
     const shown = friends.friends.filter((f) => !q || f.username.toLowerCase().includes(q));
@@ -1509,17 +1582,24 @@
     renderFriendList();
   });
 
-  async function loadProfile() {
-    if (!googleToken || username !== undefined) return;
+  // Une fois par jeton ; le cache éventuel reste affiché en attendant (et hors ligne).
+  function loadProfile() {
+    if (!googleToken || profileFresh) return Promise.resolve();
+    if (profileLoading) return profileLoading;
     const epoch = syncEpoch;
-    try {
-      const info = await syncApiAt('/api/profile', 'GET');
-      if (epoch !== syncEpoch) return; // déconnecté entre-temps
-      username = info.username;
-      profileInfo = { since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null };
-      renderAccount();
-      loadFriends();
-    } catch { /* réessayé à la prochaine synchro */ }
+    profileLoading = (async () => {
+      try {
+        const info = await syncApiAt('/api/profile', 'GET');
+        if (epoch !== syncEpoch) return; // déconnecté entre-temps
+        username = info.username;
+        profileInfo = { since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null };
+        profileFresh = true;
+        saveProfileCache();
+        renderAccount();
+        loadFriends();
+      } catch { /* réessayé à la prochaine synchro */ }
+    })().finally(() => { profileLoading = null; });
+    return profileLoading;
   }
 
   function scheduleSync() {
@@ -1633,6 +1713,7 @@
         const input = e.target.elements.username;
         try {
           ({ username } = await syncApiAt('/api/profile', 'PUT', { username: input.value }));
+          saveProfileCache();
           renderAccount();
           loadFriends();
           loadDiscoveries();
@@ -1670,9 +1751,10 @@
   }
 
   // ---------- Photo de profil et bannière ----------
-  // L'image est recadrée et réduite dans le navigateur (carré 512 px / bannière 1500×500), réencodée
-  // en JPEG (sans métadonnées), puis envoyée à /api/profile-image.
-  const IMAGE_SIZE = { avatar: [512, 512], banner: [1500, 500] };
+  // L'image est recadrée et réduite dans le navigateur (carré 384 px / bannière 1200×400, assez
+  // pour l'affichage en 110 px / 130 px de haut), réencodée en JPEG (sans métadonnées), puis
+  // envoyée à /api/profile-image.
+  const IMAGE_SIZE = { avatar: [384, 384], banner: [1200, 400] };
 
   function pickProfileImage(kind) {
     const has = kind === 'avatar' ? profileInfo?.avatar : profileInfo?.banner;
@@ -1697,7 +1779,7 @@
     canvas.width = Math.min(w, Math.round(sw));
     canvas.height = Math.round(canvas.width / ratio);
     canvas.getContext('2d').drawImage(bitmap, (bitmap.width - sw) / 2, (bitmap.height - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
-    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.7));
   }
 
   async function saveProfileImage(kind, file) {
@@ -1713,6 +1795,7 @@
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `erreur ${res.status}`);
       profileInfo = { ...(profileInfo || {}), [kind]: data.url };
+      saveProfileCache();
       renderAccount();
     } catch (err) {
       show(`L'image n'a pas pu être enregistrée : ${err.message}`, true);
@@ -1720,6 +1803,8 @@
   }
 
   try { setToken(localStorage.getItem(TOKEN_KEY)); } catch { setToken(null); }
+  // Jeton encore valable : le profil part tout de suite, sans attendre le script Google ni la synchro.
+  loadProfile();
   fetch('/api/config')
     .then((res) => (res.ok ? res.json() : null))
     .then((config) => {
@@ -1840,6 +1925,7 @@
       wishLayer.addLayers(wished);
       visitedLayer.addLayers(done);
       refreshPanels();
+      openSharedShrine();
     })
     .catch((err) => {
       $('#progress').textContent = 'Erreur de chargement des sanctuaires (' + err.message + '). Lance un serveur local : voir README.';

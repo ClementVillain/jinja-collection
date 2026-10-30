@@ -1,8 +1,9 @@
 // Onglet « Amis » (comptes connectés avec un nom d'utilisateur) : recherche dans ses amis,
 // bouton pour en ajouter, demandes reçues, puis une carte par ami (photo, nom, dernier
 // sanctuaire visité, nombre de cartes). Toucher un ami ouvre son profil (FriendProfile).
+// La dernière liste reçue est gardée sur le téléphone : affichée tout de suite, puis rafraîchie.
 // Serveur : api/friends.js — seuls les noms d'utilisateur circulent.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import Text, { withFont } from './Text';
 import { SvgXml } from 'react-native-svg';
@@ -10,10 +11,24 @@ import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { Avatar } from './AccountScreen';
 import Torii from './Torii';
 import { apiJson } from '../lib/api';
+import { KEYS } from '../lib/store';
 import { byId, useCollection } from '../state/CollectionContext';
 import { colors, fonts } from '../theme';
 
 const ADD_FRIEND = `<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="8" r="4" fill="#ffffff" stroke="none"/><path d="M2.5 21c.5-4.2 3.6-6.6 7.5-6.6s7 2.4 7.5 6.6z" fill="#ffffff" stroke="none"/><path d="M19.5 4v6M16.5 7h6"/></svg>`;
+
+// Carte grisée affichée pendant le premier chargement (jamais d'écran vide).
+function SkeletonRow() {
+  return (
+    <View style={styles.card}>
+      <View style={[styles.skeleton, { width: 50, height: 50, borderRadius: 25 }]} />
+      <View style={{ flex: 1, gap: 8 }}>
+        <View style={[styles.skeleton, { width: '45%', height: 14 }]} />
+        <View style={[styles.skeleton, { width: '70%', height: 11 }]} />
+      </View>
+    </View>
+  );
+}
 
 function FriendRow({ friend, onPress }) {
   const last = friend.last && byId.get(friend.last.id);
@@ -37,6 +52,9 @@ export default function Friends({ onLogin, onOpenFriend }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  // Déconnexion pendant un chargement : la réponse arrivée ensuite est ignorée.
+  const signOuts = useRef(c.signOuts);
+  signOuts.current = c.signOuts;
 
   const call = useCallback(async (opts = {}) => {
     const token = await c.freshToken();
@@ -45,10 +63,22 @@ export default function Friends({ onLogin, onOpenFriend }) {
   }, [c.freshToken]);
 
   const load = useCallback(async () => {
-    try { setData(await call()); setError(''); } catch (err) { setError(err.message); }
-  }, [call]);
+    const before = signOuts.current;
+    try {
+      const fresh = await call();
+      if (before !== signOuts.current) return;
+      setData(fresh); setError('');
+      c.writeAccountCache(KEYS.friends, fresh);
+    } catch (err) { if (before === signOuts.current) setError(err.message); }
+  }, [call, c.writeAccountCache]);
 
-  useEffect(() => { if (c.user && c.username) load(); }, [!!c.user, c.username]);
+  useEffect(() => {
+    if (!c.user || !c.username) return;
+    // Liste du cache d'abord (si le réseau ne l'a pas déjà donnée), puis la liste à jour.
+    const before = signOuts.current;
+    c.readAccountCache(KEYS.friends).then((cached) => { if (cached && before === signOuts.current) setData((d) => d || cached); });
+    load();
+  }, [!!c.user, c.username]);
   // Déconnexion : la liste d'amis du compte ne reste pas affichée.
   useEffect(() => { if (c.signOuts) { setData(null); setError(''); setQuery(''); } }, [c.signOuts]);
 
@@ -97,7 +127,7 @@ export default function Friends({ onLogin, onOpenFriend }) {
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      {!data ? <Text style={styles.hint}>Chargement…</Text> : (
+      {!data ? (error ? null : <><SkeletonRow /><SkeletonRow /><SkeletonRow /></>) : (
         <>
           {data.incoming.map((u) => (
             <View key={u} style={[styles.card, styles.request]}>
@@ -151,6 +181,7 @@ const styles = StyleSheet.create({
   toriiBox: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   count: { position: 'absolute', right: -6, bottom: -6, minWidth: 22, height: 22, paddingHorizontal: 5, borderRadius: 11, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.paper2 },
   countText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  skeleton: { backgroundColor: colors.line, borderRadius: 6 },
   pending: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6 },
   cancel: { color: colors.accentStrong, fontSize: 13, fontWeight: '600' },
   primaryBtn: { backgroundColor: colors.accentStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
