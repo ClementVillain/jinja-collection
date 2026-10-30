@@ -32,6 +32,12 @@ export function forgetPhoto(id) {
   memory.delete(id);
   if (store) { delete store[id]; saveJson(KEYS.photos, store); }
 }
+// Déconnexion : les photos gardées pour les cartes postales du compte quittent le téléphone.
+export function clearPhotoCache() {
+  memory.clear();
+  store = {};
+  saveJson(KEYS.photos, null);
+}
 
 // Wikimedia limite le nombre de requêtes : en cas de 429, on attend puis on réessaie.
 async function getJson(url, tries = 3) {

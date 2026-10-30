@@ -8,7 +8,7 @@ import JinjaMerge from '../shared/merge';
 import JinjaProximity from '../shared/proximity';
 import { API_BASE, APPLE_SIGN_IN, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, apiJson } from '../lib/api';
 import { KEYS, loadJson, saveJson } from '../lib/store';
-import { fetchCommunityPhotos } from '../lib/photos';
+import { clearPhotoCache, fetchCommunityPhotos } from '../lib/photos';
 import rawData from '../data/shrines.json';
 
 // Données des sanctuaires (OpenStreetMap), chargées une fois.
@@ -66,6 +66,10 @@ export function CollectionProvider({ children }) {
   const syncAgain = useRef(false);
   // Passages récents (positions GPS des 48 dernières heures), gardés seulement sur le téléphone.
   const sightings = useRef([]);
+  // Incrémenté à la déconnexion : une synchro encore en cours ne doit plus rien réécrire.
+  const epoch = useRef(0);
+  // Nombre de déconnexions : l'interface s'en sert pour fermer ce qui reste du compte (profil d'ami…).
+  const [signOuts, setSignOuts] = useState(0);
 
   // ---------- Chargement ----------
   useEffect(() => {
@@ -211,10 +215,12 @@ export function CollectionProvider({ children }) {
       return false; // pas de renouvellement silencieux chez Apple : il faudra se reconnecter
     }
     if (!GoogleSignin) return false;
+    const e = epoch.current;
     try {
       const res = await GoogleSignin.signInSilently();
       if (res?.type !== 'success') return false;
       const { idToken } = await GoogleSignin.getTokens();
+      if (e !== epoch.current) return false; // déconnecté entre-temps
       if (setToken(idToken)) { syncNow(); return true; }
     } catch { /* pas de session enregistrée */ }
     return false;
@@ -250,11 +256,44 @@ export function CollectionProvider({ children }) {
     }
   };
 
+  // Déconnexion : dernière synchro (8 s au plus ; hors ligne, tant pis : la déconnexion prime),
+  // puis la collection du compte quitte le téléphone. Le serveur n'est jamais écrit avec un état vide.
   const signOut = async () => {
+    await finalSync();
     try { await GoogleSignin?.signOut(); } catch { /* ignore */ }
     setToken(null);
+    clearLocalCollection();
     setSyncStatus({ text: '', error: false });
   };
+
+  async function finalSync() {
+    clearTimeout(syncTimer.current);
+    const attempt = (async () => {
+      // Une synchro déjà en cours : on attend sa fin, puis on renvoie les dernières modifications.
+      while (syncing.current) await new Promise((r) => setTimeout(r, 200));
+      clearTimeout(syncTimer.current);
+      syncAgain.current = false;
+      await syncNow();
+    })();
+    await Promise.race([attempt, new Promise((r) => setTimeout(r, 8000))]);
+  }
+
+  // Vide la mémoire et AsyncStorage : visites, liste « À visiter », passages, photos, profil.
+  // Appelée seulement par signOut (pas à l'expiration du jeton, renouvelé en silence).
+  function clearLocalCollection() {
+    epoch.current += 1;
+    clearTimeout(syncTimer.current);
+    syncAgain.current = false;
+    const empty = { visits: {}, deleted: {}, wishlist: {}, wishDeleted: {} };
+    stateRef.current = empty;
+    setState(empty);
+    [KEYS.visits, KEYS.deleted, KEYS.wishlist, KEYS.wishDeleted, KEYS.sightings].forEach((k) => saveJson(k, null));
+    sightings.current = [];
+    clearPhotoCache();
+    setUsernameState(undefined);
+    setProfile(null);
+    setSignOuts((n) => n + 1);
+  }
 
   // Jeton valable, en le renouvelant silencieusement s'il a expiré (1 h).
   async function freshToken() {
@@ -266,25 +305,30 @@ export function CollectionProvider({ children }) {
   // Lit le compte, fusionne avec le téléphone, puis renvoie le résultat si quelque chose a changé.
   async function syncNow() {
     if (syncing.current) { syncAgain.current = true; return; }
+    const e = epoch.current;
     const token = await freshToken();
-    if (!token) return;
+    if (!token || e !== epoch.current) return;
     syncing.current = true;
     setSyncStatus({ text: 'Synchronisation…', error: false });
     try {
       const { state: remote } = await apiJson('/api/sync', { token });
+      if (e !== epoch.current) return; // déconnecté entre-temps : on ne touche plus à rien
       // Le compte d'abord : à égalité, la version du serveur (avec le statut de vérification) l'emporte.
       const merged = JinjaMerge.merge(remote, stateRef.current);
       persist(merged);
       if (!JinjaMerge.same(merged, remote)) {
         const { state: saved } = await apiJson('/api/sync', { token, method: 'PUT', body: merged });
+        if (e !== epoch.current) return;
         if (saved) persist(JinjaMerge.merge(saved, stateRef.current));
         refreshDiscoveries();
       }
       setSyncStatus({ text: 'Synchronisé ✓', error: false });
       const info = await apiJson('/api/profile', { token });
+      if (e !== epoch.current) return;
       setUsernameState(info.username);
       setProfile({ since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null });
     } catch (err) {
+      if (e !== epoch.current) return;
       if (err.status === 401) setToken(null);
       setSyncStatus({ text: `Synchro impossible : ${err.message}`, error: true });
     } finally {
@@ -353,7 +397,7 @@ export function CollectionProvider({ children }) {
     community, refreshCommunity, uploadPhoto,
     setProfileImage,
     user, signIn, signInWithApple, signOut, syncNow, syncStatus, googleSignInAvailable, appleSignInAvailable, profile,
-    username, chooseUsername, discoveries, freshToken,
+    username, chooseUsername, discoveries, freshToken, signOuts,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

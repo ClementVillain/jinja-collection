@@ -36,6 +36,8 @@ function Main() {
   // Onglet du volet et profil d'ami ouvert, gardés ici : le volet est démonté pendant une fiche.
   const [tab, setTab] = useState('explore');
   const [friend, setFriend] = useState(null);
+  // Déconnexion : le profil d'ami ouvert se ferme.
+  useEffect(() => { setFriend(null); }, [c.signOuts]);
   // Écran du compte (avatar en haut à droite du volet), affiché en plein écran.
   const [account, setAccountState] = useState(false);
   const setAccount = (open) => {

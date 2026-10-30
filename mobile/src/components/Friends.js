@@ -49,6 +49,8 @@ export default function Friends({ onLogin, onOpenFriend }) {
   }, [call]);
 
   useEffect(() => { if (c.user && c.username) load(); }, [!!c.user, c.username]);
+  // Déconnexion : la liste d'amis du compte ne reste pas affichée.
+  useEffect(() => { if (c.signOuts) { setData(null); setError(''); setQuery(''); } }, [c.signOuts]);
 
   const act = async (action, username) => {
     try {
