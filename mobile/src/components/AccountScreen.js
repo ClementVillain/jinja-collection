@@ -122,9 +122,10 @@ async function cropToJpeg(asset, [w, h]) {
   ctx.crop({ originX: (asset.width - cw) / 2, originY: (asset.height - ch) / 2, width: cw, height: ch });
   if (cw > w) ctx.resize({ width: w, height: h });
   const image = await ctx.renderAsync();
-  return (await image.saveAsync({ compress: 0.85, format: SaveFormat.JPEG })).uri;
+  return (await image.saveAsync({ compress: 0.7, format: SaveFormat.JPEG })).uri;
 }
-const IMAGE_SIZE = { avatar: [512, 512], banner: [1500, 500] };
+// Affichées en 110 px (avatar) et 130 px de haut (bannière) : ces tailles suffisent en @3x.
+const IMAGE_SIZE = { avatar: [384, 384], banner: [1200, 400] };
 
 function SignedIn({ onSelect, onBack }) {
   const c = useCollection();

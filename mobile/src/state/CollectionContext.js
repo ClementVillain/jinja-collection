@@ -2,7 +2,7 @@
 // Même modèle de données que le site web ({ visits, deleted, wishlist, wishDeleted }) et même
 // fusion (merge.js) : le compte Google synchronise le site et l'app.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Image } from 'react-native';
 import * as Location from 'expo-location';
 import JinjaMerge from '../shared/merge';
 import JinjaProximity from '../shared/proximity';
@@ -57,6 +57,11 @@ export function CollectionProvider({ children }) {
   const [username, setUsernameState] = useState(undefined);
   // Profil du compte : date d'inscription et nombre d'amis (null tant que non chargé).
   const [profile, setProfile] = useState(null);
+  // Dernières valeurs, pour réécrire le cache du profil depuis les fonctions asynchrones.
+  const profileRef = useRef(null);
+  profileRef.current = profile;
+  const usernameRef = useRef(undefined);
+  usernameRef.current = username;
   // « Découvert par » : { idSanctuaire: nom du premier visiteur vérifié }.
   const [discoveries, setDiscoveries] = useState({});
   const stateRef = useRef(state);
@@ -195,6 +200,7 @@ export function CollectionProvider({ children }) {
     if (!valid || tokenRef.current !== token) setUsernameState(undefined);
     tokenRef.current = valid ? token : null;
     if (!valid) setProfile(null);
+    else restoreProfile(payload.sub);
     const apple = valid && payload.iss === 'https://appleid.apple.com';
     setUser(valid ? {
       name: apple ? (appleName.current || 'Compte Apple') : payload.name || payload.email,
@@ -278,7 +284,7 @@ export function CollectionProvider({ children }) {
     await Promise.race([attempt, new Promise((r) => setTimeout(r, 8000))]);
   }
 
-  // Vide la mémoire et AsyncStorage : visites, liste « À visiter », passages, photos, profil.
+  // Vide la mémoire et AsyncStorage : visites, liste « À visiter », passages, photos, profil, amis.
   // Appelée seulement par signOut (pas à l'expiration du jeton, renouvelé en silence).
   function clearLocalCollection() {
     epoch.current += 1;
@@ -287,12 +293,48 @@ export function CollectionProvider({ children }) {
     const empty = { visits: {}, deleted: {}, wishlist: {}, wishDeleted: {} };
     stateRef.current = empty;
     setState(empty);
-    [KEYS.visits, KEYS.deleted, KEYS.wishlist, KEYS.wishDeleted, KEYS.sightings].forEach((k) => saveJson(k, null));
+    [KEYS.visits, KEYS.deleted, KEYS.wishlist, KEYS.wishDeleted, KEYS.sightings, KEYS.profile, KEYS.friends].forEach((k) => saveJson(k, null));
     sightings.current = [];
     clearPhotoCache();
     setUsernameState(undefined);
     setProfile(null);
     setSignOuts((n) => n + 1);
+  }
+
+  // ---------- Profil (nom public, photo, bannière) : cache local, puis réseau ----------
+  // Le cache est rattaché au compte qui l'a écrit (`sub` du jeton) : jamais affiché pour un autre
+  // compte, et vidé à la déconnexion avec le reste de la collection.
+  const accountSub = () => jwtPayload(tokenRef.current || '')?.sub || null;
+  const readAccountCache = useCallback(async (key) => {
+    const cached = await loadJson(key, null);
+    return cached?.sub && cached.sub === accountSub() ? cached.value : null;
+  }, []);
+  const writeAccountCache = useCallback((key, value) => {
+    const sub = accountSub();
+    if (sub) saveJson(key, { sub, value });
+  }, []);
+
+  // Au lancement : profil du cache tout de suite (si le réseau ne l'a pas déjà donné).
+  async function restoreProfile(sub) {
+    const e = epoch.current;
+    const cached = await loadJson(KEYS.profile, null);
+    if (!cached?.value || cached.sub !== sub || e !== epoch.current || accountSub() !== sub) return;
+    setUsernameState((u) => (u === undefined ? cached.value.username : u));
+    setProfile((p) => p || cached.value.profile);
+  }
+
+  // Lancé en même temps que la synchro (et non après) ; rien n'est appliqué après une déconnexion.
+  async function refreshProfile(token, e) {
+    try {
+      const info = await apiJson('/api/profile', { token });
+      if (e !== epoch.current) return;
+      const next = { since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null };
+      // Images téléchargées dès maintenant : elles sont prêtes quand l'écran du compte s'ouvre.
+      [next.avatar, next.banner].forEach((url) => { if (url) Image.prefetch(url).catch(() => {}); });
+      setUsernameState(info.username);
+      setProfile(next);
+      writeAccountCache(KEYS.profile, { username: info.username, profile: next });
+    } catch { /* hors ligne : le cache reste affiché, réessayé à la prochaine synchro */ }
   }
 
   // Jeton valable, en le renouvelant silencieusement s'il a expiré (1 h).
@@ -310,6 +352,7 @@ export function CollectionProvider({ children }) {
     if (!token || e !== epoch.current) return;
     syncing.current = true;
     setSyncStatus({ text: 'Synchronisation…', error: false });
+    refreshProfile(token, e);
     try {
       const { state: remote } = await apiJson('/api/sync', { token });
       if (e !== epoch.current) return; // déconnecté entre-temps : on ne touche plus à rien
@@ -323,10 +366,6 @@ export function CollectionProvider({ children }) {
         refreshDiscoveries();
       }
       setSyncStatus({ text: 'Synchronisé ✓', error: false });
-      const info = await apiJson('/api/profile', { token });
-      if (e !== epoch.current) return;
-      setUsernameState(info.username);
-      setProfile({ since: info.since || null, friends: info.friends ?? 0, avatar: info.avatar || null, banner: info.banner || null });
     } catch (err) {
       if (e !== epoch.current) return;
       if (err.status === 401) setToken(null);
@@ -349,6 +388,7 @@ export function CollectionProvider({ children }) {
     if (!token) throw new Error('connecte-toi avec Google');
     const { username: saved } = await apiJson('/api/profile', { token, method: 'PUT', body: { username: name } });
     setUsernameState(saved);
+    writeAccountCache(KEYS.profile, { username: saved, profile: profileRef.current });
     refreshDiscoveries();
     return saved;
   };
@@ -366,7 +406,9 @@ export function CollectionProvider({ children }) {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `erreur ${res.status}`);
-    setProfile((p) => ({ ...(p || {}), [kind]: body.url }));
+    const next = { ...(profileRef.current || {}), [kind]: body.url };
+    setProfile(next);
+    writeAccountCache(KEYS.profile, { username: usernameRef.current, profile: next });
     return body.url;
   };
 
@@ -397,7 +439,7 @@ export function CollectionProvider({ children }) {
     community, refreshCommunity, uploadPhoto,
     setProfileImage,
     user, signIn, signInWithApple, signOut, syncNow, syncStatus, googleSignInAvailable, appleSignInAvailable, profile,
-    username, chooseUsername, discoveries, freshToken, signOuts,
+    username, chooseUsername, discoveries, freshToken, signOuts, readAccountCache, writeAccountCache,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
