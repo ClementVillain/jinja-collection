@@ -28,14 +28,14 @@ Résultat : la collection du compte précédent reste visible (et pourrait être
 Voir le rappel projet : interface/commentaires en français, style existant (app.js = IIFE en sections `// ---------- … ----------`), palette inchangée, ne rien toucher aux secrets/config Vercel/données utilisateurs côté serveur. App : vérifier seulement que le bundle compile (`cd mobile && npm ci && npx expo export --platform ios`).
 
 ## Critères d'acceptation
-- [ ] Déconnexion (site) → plus aucun sanctuaire visité ni carte postale affichés, onglets Collection / À visiter vides, compteurs à 0
-- [ ] Déconnexion (app) → idem
-- [ ] localStorage / AsyncStorage ne contiennent plus visites, liste à visiter, passages, photos du compte
-- [ ] Reconnexion → collection intacte (site et app)
-- [ ] Aucune donnée perdue côté serveur (aucune requête d'écriture avec un état vide)
-- [ ] Expiration du jeton (401) ne vide PAS la collection
-- [ ] Préférences d'affichage conservées
-- [ ] Suffixe `?v=` de app.js incrémenté ; l'export iOS compile
+- [ ] Déconnexion (site) → plus aucun sanctuaire visité ni carte postale affichés, onglets Collection / À visiter vides, compteurs à 0 — *implémenté (`clearLocalCollection`), non testé dans un navigateur par l'agent*
+- [ ] Déconnexion (app) → idem — *implémenté, non testé sur iPhone / simulateur*
+- [ ] localStorage / AsyncStorage ne contiennent plus visites, liste à visiter, passages, photos du compte — *clés supprimées dans le code, à vérifier dans les outils du navigateur / sur l'appareil*
+- [ ] Reconnexion → collection intacte (site et app) — *à vérifier en réel ; vérifié en Node que `merge(serveur, état vide)` redonne exactement l'état du serveur*
+- [x] Aucune donnée perdue côté serveur (aucune requête d'écriture avec un état vide) — *la déconnexion n'appelle jamais PUT ; une synchro en cours est neutralisée (compteur `syncEpoch` / `epoch`) ; `merge(serveur, vide)` est identique au serveur, donc pas de PUT à la reconnexion*
+- [x] Expiration du jeton (401) ne vide PAS la collection — *`setToken(null)` inchangé ; le vidage n'est appelé que par « Se déconnecter »*
+- [x] Préférences d'affichage conservées — *`SIDE_KEY` et `SHEET_KEY` non touchées*
+- [x] Suffixe `?v=` de app.js incrémenté (41 → 42) ; l'export iOS compile (« iOS Bundled … index.js (1494 modules) »)
 
 ## Cas limites
 - Déconnexion hors ligne ou pendant une synchro en cours (attendre/annuler le timer `scheduleSync`, éviter qu'une synchro tardive réécrive l'état après le vidage).
