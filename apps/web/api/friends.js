@@ -2,12 +2,14 @@
 // GET  /api/friends              → { friends: [{ username, count, last, avatar }], incoming: [nom], outgoing: [nom] }
 // GET  /api/friends?user=<nom>   → profil d'un ami : { username, visits: { id: { date } }, since, friends,
 //                                  avatar, banner } (même présentation que « Mon compte »)
+// GET  /api/friends?visits=1     → visites des amis pour la carte :
+//                                  { shrines: { idSanctuaire: [{ username, avatar, date }] } }
 // POST /api/friends { action: 'add' | 'remove', username }
 //      add : demande (ou acceptation si l'autre a déjà demandé) ; remove : retire, annule ou refuse
 // Seuls les noms d'utilisateur circulent : ni e-mail, ni identifiant Google.
 const { verifyGoogleUser } = require('../lib/auth');
 const { publicId, allNames, uidOfName, normalizeName, memberSince, profileImages, allProfileImages } = require('../lib/profiles');
-const { relations, addFriend, removeFriend, readShared, summary } = require('../lib/friends');
+const { relations, addFriend, removeFriend, readShared, summary, visitsByShrine } = require('../lib/friends');
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 
@@ -36,6 +38,14 @@ module.exports = async (req, res) => {
         profileImages(other).catch(() => ({ avatar: null, banner: null })),
       ]);
       return res.status(200).json({ username: nameOf.get(other), visits, since, friends: rel.friends.length, ...images });
+    }
+    if (req.method === 'GET' && req.query.visits) {
+      // Collections des amis lues en parallèle ; un ami illisible est simplement ignoré.
+      const [rel, images] = await listing;
+      const all = await Promise.all(named(rel.friends).map((u) => readShared(u)
+        .then(({ visits }) => ({ username: nameOf.get(u), avatar: images.get(u)?.avatar || null, visits }))
+        .catch(() => null)));
+      return res.status(200).json({ shrines: visitsByShrine(all.filter(Boolean)) });
     }
     if (req.method === 'GET') {
       const [rel, images] = await listing;
