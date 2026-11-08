@@ -1,109 +1,143 @@
 # ⛩ Jinja Collection
 
-Carte du Japon avec ~30 000 sanctuaires shintō (jinja). Coche ceux que tu as visités et collectionne une carte postale unique pour chacun.
+**A map of 30,000+ Shinto shrines in Japan. Check off the ones you visit, collect a unique postcard for each, and share your visits with friends.**
 
-## Organisation du dépôt
+**Live:** [jinja-collection.vercel.app](https://jinja-collection.vercel.app) · Web app + iOS / Android app (React Native / Expo)
+
+---
+
+## Highlights
+
+- **30,445 shrines** across all 47 prefectures, built from OpenStreetMap data with a custom fetch script.
+- **One codebase, three runtimes**: shared logic (sync, geo, routing, postcards) runs in the browser, in Node serverless functions and in the React Native app.
+- **Turn-by-turn navigation**: live position, next manoeuvre (OSRM routing), arrival time, automatic rerouting, and a simulation mode for testing.
+- **Google sign-in with conflict-free sync**: visits and notes merge across devices; the most recent action per shrine wins.
+- **Friends**: requests, friends' visits shown on the map, shared collections.
+- **Generated postcards**: one per shrine, with season, landscape and rarity (common, rare ★, legendary ★★), downloadable as PNG.
+- **Community photos** with privacy built in: resized to 1600 px, GPS metadata stripped, moderation script.
+- **Tested** with Node's built-in test runner (sync, navigation, friends, geo).
+
+---
+
+## Features
+
+- **Map**: unvisited shrines grouped in clusters, visited shrines always shown as red torii.
+- **Explore**: search by Japanese or romanised name (`伏見稲荷`, `meiji jingu`…).
+- **Visited**: chronological list with visit notes.
+- **Collection**: your postcards, one per visited shrine.
+- **Cover photos**: Google Maps photo when configured, otherwise Wikimedia (via OpenStreetMap/Wikidata), a community photo, or the postcard illustration.
+- **Navigation**: "Go there" from a shrine, or "Start" on a planned route. Add `?simulate=1` to the URL to test without moving (`&vitesse=10` to speed up).
+- **Offline-friendly**: without an account, visits stay in the browser (localStorage) and can be exported as JSON.
+
+The interface is in French.
+
+---
+
+## Tech stack
+
+| Area | Technology |
+|---|---|
+| Web | Vanilla JavaScript, Leaflet-style map with clustering, no bundler |
+| Mobile | React Native + Expo (iOS, Android via EAS Build) |
+| Backend | Vercel serverless functions (Node) |
+| Storage | Vercel Blob (user sync data, community photos) |
+| Auth | Google Identity Services (token signature verified server-side) |
+| Data | OpenStreetMap (`amenity=place_of_worship` + `religion=shinto`), Wikidata, Wikimedia |
+| Routing | OSRM |
+| Tests | `node --test` |
+
+---
+
+## Repository layout
 
 ```
 apps/
-  web/        site (public/) et fonctions serveur Vercel (api/, lib/) — racine du projet Vercel
-  mobile/     app iOS (React Native / Expo), voir apps/mobile/README.md
+  web/        Website (public/) and Vercel serverless functions (api/, lib/)
+  mobile/     React Native / Expo app — see apps/mobile/README.md
 packages/
-  shared/     code et données communs au site et à l'app : data/shrines.json, merge.js,
-              proximity.js, route.js, geo.js, card.js, et les scripts qui régénèrent les données
-docs/         règles de travail (git flow, versions)
+  shared/     Code and data shared by the site, the server and the app:
+              data/shrines.json, merge.js, proximity.js, route.js, geo.js, card.js,
+              plus the scripts that regenerate the data
+docs/         Working rules (git flow, versioning)
 ```
 
-Le site n'a pas de bundler : `apps/web/scripts/build.mjs` copie `packages/shared` dans
-`apps/web/public/shared/` et `public/data/` (dossiers ignorés par git). Vercel le lance à chaque
-déploiement et ne publie que `apps/web/public/`. Les fonctions serveur importent ces fichiers par
-chemin relatif (`../../../packages/shared/…`), que Vercel embarque à coup sûr dans chaque
-fonction. L'app les importe via `@jinja/shared`. Le code partagé fonctionne dans les trois
-contextes (balise `<script>`, Node et Metro).
+The site has no bundler: `apps/web/scripts/build.mjs` copies `packages/shared` into `apps/web/public/shared/` and `public/data/` (git-ignored). Vercel runs it on every deploy and only publishes `apps/web/public/`. Serverless functions import the shared files by relative path; the app imports them through `@jinja/shared`.
 
-## Lancer le site
+---
+
+## Getting started
 
 ```bash
-npm install          # à la racine, une fois
+npm install            # at the root, once
 npm run dev -w apps/web
 ```
 
-Puis ouvre http://localhost:8642. Après une modification de `packages/shared`, relance `npm run dev`.
+Open http://localhost:8642. After changing `packages/shared`, restart `npm run dev`.
 
-## Fonctionnalités
-
-- **Carte** : sanctuaires non visités regroupés en clusters (points gris), sanctuaires visités toujours visibles en torii rouges.
-- **Explorer** : recherche par nom japonais ou latin (`伏見稲荷`, `meiji jingu`…).
-- **Visités** : liste chronologique, avec la note de visite.
-- **Collection** : une carte postale générée par sanctuaire (saison, paysage, rareté : commune, rare ★, légendaire ★★), téléchargeable en PNG.
-- **Compte Google** : « Se connecter avec Google » synchronise tes visites et notes entre tous tes appareils (fusion automatique, voir `packages/shared/merge.js`).
-- **Sauvegarder / Restaurer** : sans compte, les visites restent dans le navigateur (localStorage) ; exporte-les en JSON pour ne pas les perdre.
-- **Photo de couverture** dans chaque popup : photo Google Maps (si la clé est configurée), sinon photo Wikimedia liée au sanctuaire (OpenStreetMap/Wikidata) ou trouvée par nom, sinon photo partagée par un visiteur, sinon photo Wikimedia « à proximité », sinon l'illustration de la carte postale.
-- **Photos de la communauté** : depuis la popup, « 📷 Partager ma photo » envoie une photo du sanctuaire (redimensionnée à 1600 px, sans métadonnées GPS), visible par tous.
-- Lien « Ouvrir dans Google Maps » sur chaque sanctuaire.
-- **Navigation intégrée** (`apps/web/public/navigation.js`) : « ➤ Y aller » dans la popup, ou « ▶ Démarrer » sur un circuit de l'onglet « À visiter ». Position suivie en direct, bandeau avec la prochaine manœuvre (étapes OSRM, textes générés en français), heure d'arrivée, recalcul si on s'écarte du tracé, écran maintenu allumé, « J'y suis allé ⛩ » à l'arrivée. Pour tester sans bouger : ajoute `?simulate=1` à l'URL (`&vitesse=10` pour accélérer).
-
-## Tests
+### Tests
 
 ```bash
-npm test   # depuis la racine : packages/shared puis apps/web (node --test)
+npm test   # from the root: packages/shared, then apps/web
 ```
 
-Installer d'abord les dépendances : `npm install` à la racine (workspaces npm : `apps/web` et `packages/shared`).
-L'app mobile garde ses propres dépendances (`npm install` dans `apps/mobile`), pour ne pas perturber la compilation iOS.
+The mobile app keeps its own dependencies (`npm install` in `apps/mobile`) so it does not interfere with the iOS build.
 
-## Données
+### Updating the shrine data
 
-Les sanctuaires viennent d'OpenStreetMap (`amenity=place_of_worship` + `religion=shinto`), et non de Google Maps : l'API Google Places limite chaque recherche à 60 résultats, est payante et interdit de stocker les données. Pour mettre à jour la liste :
+Shrines come from OpenStreetMap rather than Google Maps: the Google Places API caps each search at 60 results, is paid, and forbids storing the data.
 
 ```bash
-npm install                                   # à la racine
 node packages/shared/scripts/fetch-shrines.mjs
 ```
 
-Le fichier `packages/shared/data/shrines.json` sert au site, au serveur et à l'app : il n'y a plus de copie à faire.
+---
 
-## Photos Google Maps
+## Configuration
 
-La fonction Vercel [`apps/web/api/photo.js`](apps/web/api/photo.js) interroge l'API Google Places (New) côté serveur : la clé n'est jamais envoyée au navigateur.
+### Google Maps photos (optional)
 
-1. Dans Google Cloud Console, active **Places API (New)** et crée une clé API restreinte à cette seule API.
-2. Fixe un **quota journalier** (APIs & Services → Places API (New) → Quotas) pour plafonner la facture : chaque popup ouverte coûte une recherche + une photo.
-3. Ajoute la clé à Vercel puis redéploie :
+`apps/web/api/photo.js` calls the Google Places API (New) server-side, so the key never reaches the browser.
+
+1. In Google Cloud Console, enable **Places API (New)** and create a key restricted to that API.
+2. Set a **daily quota** to cap the bill (each opened popup costs one search + one photo).
+3. Add the key to Vercel and redeploy:
 
 ```bash
 vercel env add GOOGLE_MAPS_API_KEY production
 vercel deploy --prod
 ```
 
-En local, `npm run dev` n'exécute pas `/api` : l'appli retombe sur Wikimedia. Pour tester les photos Google en local : `vercel env pull` puis `vercel dev`.
+Locally, `npm run dev` does not run `/api`, so the app falls back to Wikimedia. Use `vercel env pull` then `vercel dev` to test Google photos.
 
-## Photos de la communauté
+### Google sign-in and sync
 
-Stockées dans Vercel Blob (store `jinja-photos`, région Tokyo) sous `community/<idSanctuaire>/`.
-`apps/web/api/upload.js` reçoit les envois (JPEG, 3 Mo max), `apps/web/api/community.js` liste la photo la plus récente de chaque sanctuaire.
+- The browser gets an identity token from Google Identity Services; `apps/web/lib/auth.js` verifies its signature and audience.
+- `apps/web/api/sync.js` reads and writes each account's `{ visits, deleted }` state in Vercel Blob under `users/<sha256(Google id)>/` (last 3 versions kept).
+- `packages/shared/merge.js` merges browser and account state: for each shrine, the most recent action wins.
 
-Modération (supprimer une photo inappropriée), depuis la racine du dépôt :
-
-```bash
-vercel env pull
-node apps/web/scripts/remove-photo.mjs w561378888            # toutes les photos d'un sanctuaire
-node apps/web/scripts/remove-photo.mjs https://…/photo.jpg   # une seule photo
-```
-
-Pour tester en local avec les fonctions serveur : `vercel dev`.
-
-## Connexion Google et synchronisation
-
-- Le navigateur obtient un jeton d'identité via Google Identity Services ; `apps/web/lib/auth.js` en vérifie la signature (clés publiques Google) et l'audience.
-- `apps/web/api/sync.js` lit / écrit l'état `{ visits, deleted }` du compte dans Vercel Blob sous `users/<sha256(id Google)>/` (3 dernières versions gardées).
-- `packages/shared/merge.js` fusionne navigateur et compte : pour chaque sanctuaire, l'action la plus récente (visite, note, retrait) l'emporte.
-
-Configuration : créer un **ID client OAuth « Application Web »** dans Google Cloud Console (origines JavaScript autorisées : `https://jinja-collection.vercel.app`, `http://localhost:3000`), puis :
+Create an OAuth client ID ("Web application") in Google Cloud Console, then:
 
 ```bash
 vercel env add GOOGLE_CLIENT_ID production
 vercel deploy --prod
 ```
 
-Sans `GOOGLE_CLIENT_ID`, l'encart de connexion n'apparaît pas et l'appli fonctionne comme avant.
+Without `GOOGLE_CLIENT_ID`, the sign-in panel is hidden and the app works locally only.
+
+### Community photos
+
+Stored in Vercel Blob (store `jinja-photos`, Tokyo region) under `community/<shrineId>/`. `apps/web/api/upload.js` accepts uploads (JPEG, 3 MB max); `apps/web/api/community.js` lists the latest photo per shrine.
+
+Moderation, from the repository root:
+
+```bash
+vercel env pull
+node apps/web/scripts/remove-photo.mjs w561378888            # all photos of a shrine
+node apps/web/scripts/remove-photo.mjs https://…/photo.jpg   # a single photo
+```
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md).
