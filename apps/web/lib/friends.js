@@ -70,4 +70,18 @@ function summary(shared) {
   return { count: entries.length, last: last ? { id: last[0], date: last[1].date } : null };
 }
 
-module.exports = { relations, addFriend, removeFriend, writeShared, hasShared, readShared, summary };
+// Amis par sanctuaire, pour la carte : { "<idSanctuaire>": [{ username, avatar, date }] },
+// visite la plus récente d'abord. friends : [{ username, avatar, visits }] (collections partagées).
+function visitsByShrine(friends) {
+  const out = {};
+  for (const { username, avatar, visits } of friends) {
+    for (const [id, v] of Object.entries(visits || {})) {
+      if (!v?.date) continue;
+      (out[id] ||= []).push({ username, avatar: avatar || null, date: v.date });
+    }
+  }
+  for (const list of Object.values(out)) list.sort((a, b) => b.date.localeCompare(a.date) || a.username.localeCompare(b.username));
+  return out;
+}
+
+module.exports = { relations, addFriend, removeFriend, writeShared, hasShared, readShared, summary, visitsByShrine };

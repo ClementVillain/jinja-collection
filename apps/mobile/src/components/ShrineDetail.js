@@ -8,6 +8,7 @@ import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import ShrineCard from '@jinja/shared/card';
+import JinjaFriendVisits from '@jinja/shared/friendvisits';
 import { coverSlides, creditOf, forgetPhoto, rememberAuthor } from '../lib/photos';
 import { fmtDate, latinName } from '../lib/text';
 import { useCollection } from '../state/CollectionContext';
@@ -151,6 +152,9 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
           <Text style={styles.discovererText}>Découvert par <Text style={{ fontWeight: '700', color: colors.ink }}>{c.discoveries[shrine.id]}</Text></Text>
         </View>
       ) : null}
+      {c.friendVisits?.[shrine.id]?.length ? (
+        <Text style={styles.friendVisits}>Visité par {JinjaFriendVisits.joinFr(c.friendVisits[shrine.id].map((f) => `@${f.username} (${fmtDate(f.date)})`))}</Text>
+      ) : null}
       <Text style={[styles.status, visited && styles.statusDone, wished && styles.statusWish]}>
         {visited ? `✓ Visité le ${fmtDate(c.visits[shrine.id].date)}` : wished ? '★ Dans ta liste « À visiter »' : 'Pas encore visité'}
       </Text>
@@ -242,6 +246,7 @@ const styles = StyleSheet.create({
   wishOn: { borderColor: colors.accent },
   discoverer: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   discovererText: { fontSize: 12, color: colors.muted },
+  friendVisits: { fontSize: 12, color: colors.muted, marginTop: 4, lineHeight: 17 },
   unverified: { fontSize: 12, color: '#9a6a00', marginTop: -6, marginBottom: 10 },
   upload: { fontSize: 13, color: colors.muted, marginTop: 8 },
   routeRow: { flexDirection: 'row', gap: 8, marginTop: 10 },

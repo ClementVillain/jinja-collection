@@ -9,6 +9,7 @@ Règles de travail : voir `docs/git-flow.md`.
 
 ### Fonctionnalités
 - App Android : configuration de compilation (EAS Build) produisant un APK installable.
+- Carte : les sanctuaires visités par tes amis affichent leurs photos de profil (3 au maximum, puis « +N »), liste « Visité par » sur la fiche et pastille de nouvelles visites dans l'onglet Amis (site et app).
 
 ## [0.9.0] - 2026-10-30
 

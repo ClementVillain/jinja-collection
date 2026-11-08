@@ -30,13 +30,16 @@ function SkeletonRow() {
   );
 }
 
-function FriendRow({ friend, onPress }) {
+function FriendRow({ friend, news, onPress }) {
   const last = friend.last && byId.get(friend.last.id);
   return (
     <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]} onPress={onPress}>
       <Avatar name={friend.username} uri={friend.avatar} size={50} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.name} numberOfLines={1}>@{friend.username}</Text>
+        <View style={styles.nameRow}>
+          <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>@{friend.username}</Text>
+          {news ? <Text style={styles.news}>{news} nouvelle{news > 1 ? 's' : ''}</Text> : null}
+        </View>
         <Text style={styles.sub} numberOfLines={1}>{last ? last.name : 'Pas encore de visite'}</Text>
       </View>
       <View style={styles.toriiBox}>
@@ -141,7 +144,7 @@ export default function Friends({ onLogin, onOpenFriend }) {
             </View>
           ))}
 
-          {shown.map((f) => <FriendRow key={f.username} friend={f} onPress={() => onOpenFriend(f)} />)}
+          {shown.map((f) => <FriendRow key={f.username} friend={f} news={c.friendNews[f.username]} onPress={() => onOpenFriend(f)} />)}
 
           {q && !isKnown && q.length >= 3 ? (
             <Pressable style={[styles.card, styles.invite]} onPress={add}>
@@ -177,6 +180,8 @@ const styles = StyleSheet.create({
   invite: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed', paddingVertical: 14 },
   inviteGo: { color: colors.accentStrong, fontWeight: '700' },
   name: { fontSize: 16, fontWeight: '700', color: colors.ink },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  news: { fontSize: 11, fontWeight: '700', color: colors.ink, backgroundColor: colors.soft, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
   sub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   toriiBox: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   count: { position: 'absolute', right: -6, bottom: -6, minWidth: 22, height: 22, paddingHorizontal: 5, borderRadius: 11, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.paper2 },

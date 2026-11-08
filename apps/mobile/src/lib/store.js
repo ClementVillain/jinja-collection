@@ -1,6 +1,6 @@
 // Stockage local (équivalent du localStorage du site) : visites, liste « À visiter »,
-// photos déjà trouvées, session Google, profil et amis du compte (affichés avant le réseau).
-// Tout est en JSON.
+// photos déjà trouvées, session Google, profil et amis du compte (affichés avant le réseau),
+// dernier passage dans l'onglet Amis et réglage « Visites des amis » de la carte. Tout est en JSON.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const KEYS = {
@@ -14,6 +14,8 @@ export const KEYS = {
   sightings: 'jinja-collection:sightings',
   profile: 'jinja-collection:profile',
   friends: 'jinja-collection:friends',
+  friendsSeen: 'jinja-collection:friends-seen',
+  showFriendVisits: 'jinja-collection:show-friend-visits',
 };
 
 export async function loadJson(key, fallback = {}) {

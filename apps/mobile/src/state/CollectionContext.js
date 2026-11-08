@@ -6,6 +6,7 @@ import { AppState, Image } from 'react-native';
 import * as Location from 'expo-location';
 import JinjaMerge from '@jinja/shared/merge';
 import JinjaProximity from '@jinja/shared/proximity';
+import JinjaFriendVisits from '@jinja/shared/friendvisits';
 import { API_BASE, APPLE_SIGN_IN, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, apiJson } from '../lib/api';
 import { KEYS, loadJson, saveJson } from '../lib/store';
 import { clearPhotoCache, fetchCommunityPhotos } from '../lib/photos';
@@ -75,6 +76,16 @@ export function CollectionProvider({ children }) {
   const epoch = useRef(0);
   // Nombre de déconnexions : l'interface s'en sert pour fermer ce qui reste du compte (profil d'ami…).
   const [signOuts, setSignOuts] = useState(0);
+  // Visites des amis pour la carte : { idSanctuaire: [{ username, avatar, date }] } (null : pas chargées),
+  // gardées en mémoire seulement ; pastille de l'onglet Amis et nouvelles visites par ami.
+  const [friendVisits, setFriendVisits] = useState(null);
+  const friendVisitsRef = useRef(null);
+  const friendVisitsSub = useRef(null);
+  const [friendsBadge, setFriendsBadge] = useState(0);
+  const [friendNews, setFriendNews] = useState({});
+  const friendsTabOpen = useRef(false);
+  // Case « Visites des amis » de la carte : réglage du téléphone (gardé à la déconnexion).
+  const [showFriendVisits, setShowFriendVisitsState] = useState(true);
 
   // ---------- Chargement ----------
   useEffect(() => {
@@ -93,6 +104,7 @@ export function CollectionProvider({ children }) {
     })();
     refreshCommunity();
     refreshDiscoveries();
+    loadJson(KEYS.showFriendVisits, true).then((v) => setShowFriendVisitsState(v !== false));
   }, []);
 
   const refreshDiscoveries = useCallback(() => {
@@ -200,6 +212,8 @@ export function CollectionProvider({ children }) {
     if (!valid || tokenRef.current !== token) setUsernameState(undefined);
     // Autre compte (ou plus de compte) : le profil précédent ne reste pas affiché.
     if (!valid || jwtPayload(tokenRef.current || '')?.sub !== payload.sub) setProfile(null);
+    // Autre compte : les visites de ses amis non plus (une simple expiration du jeton les garde).
+    if (valid && friendVisitsSub.current && friendVisitsSub.current !== payload.sub) forgetFriendVisits();
     tokenRef.current = valid ? token : null;
     if (valid) restoreProfile(payload.sub);
     const apple = valid && payload.iss === 'https://appleid.apple.com';
@@ -285,7 +299,8 @@ export function CollectionProvider({ children }) {
     await Promise.race([attempt, new Promise((r) => setTimeout(r, 8000))]);
   }
 
-  // Vide la mémoire et AsyncStorage : visites, liste « À visiter », passages, photos, profil, amis.
+  // Vide la mémoire et AsyncStorage : visites, liste « À visiter », passages, photos, profil, amis
+  // (et leurs visites sur la carte).
   // Appelée seulement par signOut (pas à l'expiration du jeton, renouvelé en silence).
   function clearLocalCollection() {
     epoch.current += 1;
@@ -294,8 +309,9 @@ export function CollectionProvider({ children }) {
     const empty = { visits: {}, deleted: {}, wishlist: {}, wishDeleted: {} };
     stateRef.current = empty;
     setState(empty);
-    [KEYS.visits, KEYS.deleted, KEYS.wishlist, KEYS.wishDeleted, KEYS.sightings, KEYS.profile, KEYS.friends].forEach((k) => saveJson(k, null));
+    [KEYS.visits, KEYS.deleted, KEYS.wishlist, KEYS.wishDeleted, KEYS.sightings, KEYS.profile, KEYS.friends, KEYS.friendsSeen].forEach((k) => saveJson(k, null));
     sightings.current = [];
+    forgetFriendVisits();
     clearPhotoCache();
     setUsernameState(undefined);
     setProfile(null);
@@ -394,6 +410,63 @@ export function CollectionProvider({ children }) {
     return saved;
   };
 
+  // ---------- Visites des amis (api/friends.js?visits=1, packages/shared/friendvisits.js) ----------
+  // Chargées à la connexion (nom d'utilisateur connu), au retour au premier plan et à l'ouverture
+  // de l'onglet Amis. Pastille : visites d'amis postérieures au dernier passage dans l'onglet Amis
+  // (date rattachée au compte) ; au premier chargement, la date est initialisée sans pastille.
+  function forgetFriendVisits() {
+    friendVisitsRef.current = null;
+    friendVisitsSub.current = null;
+    setFriendVisits(null);
+    setFriendsBadge(0);
+    setFriendNews({});
+  }
+
+  async function refreshFriendVisits() {
+    const e = epoch.current;
+    const sub = accountSub();
+    if (!sub || !usernameRef.current) return;
+    try {
+      const token = await freshToken();
+      if (!token) return;
+      const { shrines = {} } = await apiJson('/api/friends?visits=1', { token });
+      if (e !== epoch.current || sub !== accountSub()) return; // déconnecté ou autre compte entre-temps
+      friendVisitsRef.current = shrines;
+      friendVisitsSub.current = sub;
+      setFriendVisits(shrines);
+      const seen = await readAccountCache(KEYS.friendsSeen);
+      if (e !== epoch.current) return;
+      if (!seen) writeAccountCache(KEYS.friendsSeen, new Date().toISOString());
+      setFriendsBadge(seen && !friendsTabOpen.current ? JinjaFriendVisits.newVisits(shrines, seen).total : 0);
+    } catch { /* hors ligne, pas de nom d'utilisateur : rien de plus à afficher */ }
+  }
+
+  useEffect(() => {
+    if (!user || !username) return undefined;
+    refreshFriendVisits();
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') refreshFriendVisits(); });
+    return () => sub.remove();
+  }, [!!user, username]);
+
+  // Onglet Amis ouvert : visites relues, nouvelles visites notées sur chaque ami, pastille effacée.
+  const setFriendsTabOpen = async (open) => {
+    friendsTabOpen.current = open;
+    if (!open) return;
+    setFriendsBadge(0);
+    const e = epoch.current;
+    await refreshFriendVisits();
+    const shrines = friendVisitsRef.current;
+    if (!shrines || e !== epoch.current) return;
+    const seen = await readAccountCache(KEYS.friendsSeen);
+    setFriendNews(seen ? JinjaFriendVisits.newVisits(shrines, seen).byFriend : {});
+    writeAccountCache(KEYS.friendsSeen, new Date().toISOString());
+  };
+
+  const setShowFriendVisits = (show) => {
+    setShowFriendVisitsState(show);
+    saveJson(KEYS.showFriendVisits, show);
+  };
+
   // ---------- Photo de profil et bannière ----------
   // kind : 'avatar' | 'banner' ; jpegUri : image déjà recadrée en JPEG, ou null pour revenir
   // à la photo Google / bannière par défaut.
@@ -441,6 +514,7 @@ export function CollectionProvider({ children }) {
     setProfileImage,
     user, signIn, signInWithApple, signOut, syncNow, syncStatus, googleSignInAvailable, appleSignInAvailable, profile,
     username, chooseUsername, discoveries, freshToken, signOuts, readAccountCache, writeAccountCache,
+    friendVisits, friendsBadge, friendNews, setFriendsTabOpen, showFriendVisits, setShowFriendVisits,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

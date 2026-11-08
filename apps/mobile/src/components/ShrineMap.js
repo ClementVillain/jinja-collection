@@ -1,9 +1,13 @@
 // Carte native (MapLibre) : fond OpenStreetMap vectoriel (OpenFreeMap, gratuit, sans clé),
 // ~30 000 sanctuaires regroupés en bulles par le téléphone, visités en olive (torii), « À visiter » en
 // céladon (étoile) (regroupés aussi, en bulles de leur couleur), sanctuaire sélectionné, circuit et navigation.
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
-import { StyleSheet } from 'react-native';
-import { Camera, GeoJSONSource, Images, Layer, Map, NativeUserLocation } from '@maplibre/maplibre-react-native';
+// Visites des amis : photos (3 au plus, puis « +N ») au-dessus des sanctuaires affichés seuls dans
+// la zone visible, à partir du zoom 11 (packages/shared/friendvisits.js).
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { Image, StyleSheet, View } from 'react-native';
+import { Camera, GeoJSONSource, Images, Layer, Map, Marker, NativeUserLocation } from '@maplibre/maplibre-react-native';
+import JinjaFriendVisits from '@jinja/shared/friendvisits';
+import Text from './Text';
 import { shrines, byId } from '../state/CollectionContext';
 import { colors } from '../theme';
 
@@ -26,6 +30,29 @@ const overlayRadius = ['step', ['get', 'point_count'], 14, 10, 17, 100, 21];
 const PIN_IMAGES = { torii: require('../../assets/map/torii.png'), star: require('../../assets/map/star.png') };
 const pinIcon = (image) => ({ 'icon-image': image, 'icon-size': 1, 'icon-allow-overlap': true, 'icon-ignore-placement': true });
 
+// Pastilles d'amis : vues natives (photos distantes), moins nombreuses que sur le site pour garder
+// une carte fluide.
+const MAX_FRIEND_PINS = 80;
+// Calques où un sanctuaire est dessiné seul (hors bulle) : seuls ceux-là reçoivent une pastille.
+const SINGLE_LAYERS = ['shrine', 'wished-dot', 'visited-dot'];
+
+// 3 photos d'amis chevauchées au plus (initiale sur céladon sans photo), puis « +N ».
+function FriendStack({ list }) {
+  const { shown, more } = JinjaFriendVisits.stack(list);
+  return (
+    <View style={styles.stack}>
+      {shown.map((f, i) => (f.avatar
+        ? <Image key={f.username} source={{ uri: f.avatar }} style={[styles.face, i > 0 && styles.overlap]} />
+        : (
+          <View key={f.username} style={[styles.face, styles.initial, i > 0 && styles.overlap]}>
+            <Text style={styles.initialText}>{JinjaFriendVisits.initial(f.username)}</Text>
+          </View>
+        )))}
+      {more ? <View style={[styles.more, styles.overlap]}><Text style={styles.moreText}>+{more}</Text></View> : null}
+    </View>
+  );
+}
+
 const point = (s, props = {}) => ({ type: 'Feature', id: s.id, properties: { id: s.id, ...props }, geometry: { type: 'Point', coordinates: [s.lon, s.lat] } });
 const collection = (features) => ({ type: 'FeatureCollection', features });
 
@@ -33,9 +60,12 @@ const collection = (features) => ({ type: 'FeatureCollection', features });
 const ALL = collection(shrines.map((s) => point(s)));
 
 const ShrineMap = forwardRef(function ShrineMap({
-  visits, wishlist, selectedId, onSelect, route, nav, showUser, onUserPan, getPadding,
+  visits, wishlist, selectedId, onSelect, route, nav, showUser, onUserPan, getPadding, friendVisits, showFriendVisits,
 }, ref) {
   const camera = useRef(null);
+  const mapRef = useRef(null);
+  const region = useRef(null);
+  const [friendIds, setFriendIds] = useState([]);
   const source = useRef(null);
   const wishedSource = useRef(null);
   const visitedSource = useRef(null);
@@ -66,6 +96,22 @@ const ShrineMap = forwardRef(function ShrineMap({
     type: 'Feature', properties: { label: nav.circuit ? String(i + 1) : '' }, geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
   })).filter(Boolean)) : null), [nav?.stops, nav?.target, nav?.circuit]);
 
+  // Sanctuaires de la zone visible visités par des amis, dessinés seuls (pas dans une bulle).
+  const refreshFriendPins = useCallback(async () => {
+    const r = region.current;
+    if (!r?.bounds || !showFriendVisits || !friendVisits || nav || r.zoom < JinjaFriendVisits.MIN_ZOOM) { setFriendIds([]); return; }
+    const [west, south, east, north] = r.bounds;
+    let single = null;
+    try {
+      const features = await mapRef.current?.queryRenderedFeatures({ layers: SINGLE_LAYERS });
+      single = new Set((features || []).map((f) => f.properties?.id).filter(Boolean));
+    } catch { /* carte pas prête : la zone suffit */ }
+    setFriendIds(JinjaFriendVisits.visible(friendVisits, (id) => byId.get(id), { west, south, east, north }, {
+      zoom: r.zoom, limit: MAX_FRIEND_PINS, keep: single ? (id) => single.has(id) : undefined,
+    }));
+  }, [friendVisits, showFriendVisits, !!nav]);
+  useEffect(() => { refreshFriendPins(); }, [refreshFriendPins, visits, wishlist]);
+
   // Toucher une bulle zoome dessus (chaque source a ses bulles) ; toucher un point l'ouvre.
   const pressIn = (src) => async (e) => {
     const f = e.nativeEvent.features?.[0];
@@ -80,6 +126,7 @@ const ShrineMap = forwardRef(function ShrineMap({
 
   return (
     <Map
+      ref={mapRef}
       style={StyleSheet.absoluteFill}
       mapStyle={MAP_STYLE}
       attribution
@@ -87,6 +134,7 @@ const ShrineMap = forwardRef(function ShrineMap({
       logo={false}
       compass={false}
       onRegionWillChange={(e) => { if (e.nativeEvent?.userInteraction) onUserPan?.(); }}
+      onRegionDidChange={(e) => { region.current = e.nativeEvent; refreshFriendPins(); }}
     >
       <Camera ref={camera} initialViewState={JAPAN} />
       <Images images={PIN_IMAGES} />
@@ -169,8 +217,31 @@ const ShrineMap = forwardRef(function ShrineMap({
       <GeoJSONSource id="selected" data={selected}>
         <Layer id="selected-ring" type="circle" paint={{ 'circle-color': 'rgba(0,0,0,0)', 'circle-radius': 16, 'circle-stroke-color': colors.ink, 'circle-stroke-width': 3 }} />
       </GeoJSONSource>
+
+      {/* En haut à droite du point : le torii ou l'étoile restent visibles ; toucher ouvre la fiche. */}
+      {friendIds.map((id) => {
+        const s = byId.get(id);
+        return (
+          <Marker key={`friends-${id}`} id={`friends-${id}`} lngLat={[s.lon, s.lat]} anchor="bottom-left" offset={[6, -8]} onPress={() => onSelect(id)}>
+            <FriendStack list={friendVisits[id]} />
+          </Marker>
+        );
+      })}
     </Map>
   );
 });
 
 export default ShrineMap;
+
+const styles = StyleSheet.create({
+  stack: {
+    flexDirection: 'row', alignItems: 'center', padding: 2, borderRadius: 15, backgroundColor: '#ffffff',
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 1 },
+  },
+  face: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#ffffff', backgroundColor: colors.paper2 },
+  overlap: { marginLeft: -8 },
+  initial: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center' },
+  initialText: { color: colors.ink, fontSize: 10, fontWeight: '700' },
+  more: { minWidth: 22, height: 22, paddingHorizontal: 5, borderRadius: 11, borderWidth: 2, borderColor: '#ffffff', backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center' },
+  moreText: { color: '#ffffff', fontSize: 10, fontWeight: '700' },
+});
