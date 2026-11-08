@@ -126,6 +126,34 @@ button.friend-card:hover { filter: brightness(0.97); }
 .badge-gold { background: var(--soft) !important; color: var(--ink) !important; }
 .badge-new { margin-left: 3px; background: var(--soft) !important; color: var(--ink) !important; }
 .friend-new { margin-left: 4px; padding: 1px 6px; border-radius: 8px; background: var(--soft); color: var(--ink); font-size: 11px; font-weight: 700; }
+/* Sanctuaires reçus non lus (pastille par ami). */
+.friend-unread { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 5px; border-radius: 9px; background: var(--accent-strong); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; vertical-align: 2px; }
+
+/* ---------- Conversation avec un ami (sanctuaires envoyés et reçus) ---------- */
+.chat-head { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 16px 16px 12px 70px; border-bottom: 1px solid var(--line); }
+.chat-who { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0; border: 0; background: none; font: inherit; color: var(--ink); cursor: pointer; text-align: left; }
+.chat-who b { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-thread { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+.chat-msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 82%; }
+.chat-msg.mine { align-self: flex-end; align-items: flex-end; }
+.chat-bubble { width: 100%; overflow: hidden; border-radius: 16px 16px 16px 4px; background: var(--paper-2); color: var(--ink); }
+.chat-msg.mine .chat-bubble { border-radius: 16px 16px 4px 16px; background: var(--accent-strong); color: #fff; }
+.chat-cover { height: 120px; display: grid; place-items: center; background: var(--soft); color: var(--accent-strong); }
+.chat-cover .torii { width: 34px; height: 34px; fill: currentColor; }
+.chat-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.chat-body { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px 12px; }
+.chat-name { font-size: 15px; }
+.chat-place { font-size: 12px; opacity: 0.8; }
+.chat-go { align-self: flex-start; margin-top: 6px; padding: 6px 10px; border: 0; border-radius: 8px; background: #fff; color: var(--accent-strong); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.chat-go:disabled { opacity: 0.5; cursor: default; }
+.chat-date { margin-top: 3px; font-size: 11px; color: var(--muted); }
+
+/* Fenêtre « Envoyer à un ami » */
+.send-body { width: min(420px, 100%); }
+.friend-card.send-to:disabled { opacity: 0.6; cursor: default; }
+.send-status { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.send-status.ok { color: var(--accent-strong); font-weight: 700; }
+.send-status.error { color: var(--danger); }
 .badge { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent-strong); color: #fff; font-size: 11px; line-height: 18px; }
 
 .tab-panel { display: none; flex: 1; overflow-y: auto; padding: 14px 16px; }
@@ -351,7 +379,7 @@ body.signed-in .friend-toggle { display: flex; }
 /* « J'y suis allé » et « À visiter » : même taille. */
 .popup-actions .wish-btn { flex: 1; }
 .popup-actions [data-action="visit"] { flex: 1; }
-.popup-route-row { display: flex; gap: 6px; margin-top: 10px; }
+.popup-route-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .popup-route {
   flex: 1; display: block; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff;
   font-size: 12px; font-weight: 500; text-align: center; text-decoration: none; color: var(--ink) !important; white-space: nowrap;
@@ -362,6 +390,8 @@ body.signed-in .friend-toggle { display: flex; }
 .popup-route.popup-go:hover { background: var(--accent-dark); color: #fff !important; }
 .popup-share { display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
 .popup-share .share-icon { width: 14px; height: 14px; flex: none; }
+/* « Envoyer à un ami » : seul sur sa ligne, sous « Y aller » et « Partager ». */
+.popup-send { flex: 1 0 100%; }
 .popup-upload-status { font-size: 12px; margin-top: 6px; color: var(--muted); }
 .popup-upload-status:empty { display: none; }
 .popup-upload-status.ok { color: var(--accent-strong); }

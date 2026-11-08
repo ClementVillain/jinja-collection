@@ -190,6 +190,7 @@
       <div class="popup-route-row">
         <button type="button" class="popup-route popup-go" data-action="navigate" data-id="${s.id}">➤ Y aller</button>
         <button type="button" class="ghost small popup-share" data-action="share" data-id="${s.id}" title="Partager ce sanctuaire">${SHARE_ICON}<span>Partager</span></button>
+        <button type="button" class="ghost small popup-share popup-send" data-action="${act('send-friend')}" data-id="${s.id}" title="Envoyer ce sanctuaire à un ami de l'app">${SEND_ICON}<span>Envoyer à un ami</span></button>
       </div>
       <a class="popup-link" href="${gmaps}" target="_blank" rel="noopener">Ouvrir dans Google Maps</a>
     </div>`;
@@ -647,6 +648,7 @@
     else if (action === 'login-hint') { map.closePopup(); showAccount(); }
     else if (action === 'navigate') JinjaNav.start({ stops: [byId.get(id)], mode: routeMode });
     else if (action === 'share') shareShrine(id, btn);
+    else if (action === 'send-friend') openSendModal(id);
   });
 
   // ---------- Partage ----------
@@ -654,6 +656,7 @@
   // avec sa fiche. Sur téléphone, feuille de partage du système ; sinon, lien copié.
   const SITE_URL = 'https://jinja-collection.vercel.app/';
   const SHARE_ICON = '<svg class="share-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>';
+  const SEND_ICON = '<svg class="share-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></svg>';
   const SHRINE_ID = /^[a-z]\d+$/;
   const shareUrl = (id) => `${SITE_URL}?s=${encodeURIComponent(id)}`;
 
@@ -1273,7 +1276,7 @@
   function setToken(token) {
     const payload = token && jwtPayload(token);
     const valid = payload && payload.exp * 1000 > Date.now() + 60 * 1000;
-    if (!valid || googleToken !== token) { username = undefined; profileInfo = null; friends = null; friendView = null; profileFresh = false; }
+    if (!valid || googleToken !== token) { username = undefined; profileInfo = null; friends = null; friendView = null; chatView = null; profileFresh = false; }
     googleToken = valid ? token : null;
     if (valid) { restoreAccountCache(payload.sub); forgetFriendVisits(payload.sub); }
     googleUser = valid ? { name: payload.name || payload.email, email: payload.email, picture: payload.picture } : null;
@@ -1410,6 +1413,7 @@
     profileInfo = null;
     friends = null;
     friendView = null;
+    chatView = null;
     friendsError = '';
     friendQuery = '';
     try {
@@ -1428,6 +1432,10 @@
   // l'écran du compte ({ username, avatar, count, data, error }), même présentation que « Mon compte ».
   let friends = null;
   let friendView = null;
+  // chatView : conversation avec un ami affichée dans l'écran du compte ({ username, avatar, messages, error }) ;
+  // unreadMsgs : sanctuaires reçus non lus, par ami (api/messages.js).
+  let chatView = null;
+  let unreadMsgs = {};
   let friendsError = '';
   let friendQuery = '';
   const friendsApi = (method, body, query = '') => syncApiAt(`/api/friends${query}`, method, body);
@@ -1441,6 +1449,7 @@
     if (list) { friends = list; writeAccountCache(FRIENDS_KEY, list); }
     friendsError = error;
     renderFriends();
+    loadUnread();
   }
 
   async function friendAction(action, name) {
@@ -1503,7 +1512,8 @@
       </div>`).join('')}
       ${shown.map((f) => `<button type="button" class="friend-card" data-friends="view" data-name="${esc(f.username)}">
         ${avatarHtml(50, f)}
-        <span class="friend-text"><b>@${esc(f.username)}${friendNews[f.username] ? ` <span class="friend-new">${friendNews[f.username]} nouvelle${friendNews[f.username] > 1 ? 's' : ''}</span>` : ''}</b><small>${f.last && byId.has(f.last.id) ? esc(byId.get(f.last.id).name) : 'Pas encore de visite'}</small></span>
+        <span class="friend-text"><b>@${esc(f.username)}${friendNews[f.username] ? ` <span class="friend-new">${friendNews[f.username]} nouvelle${friendNews[f.username] > 1 ? 's' : ''}</span>` : ''}${unreadMsgs[f.username]
+          ? ` <span class="friend-unread" title="${JinjaMessages.countLabel(unreadMsgs[f.username])} reçu${unreadMsgs[f.username] > 1 ? 's' : ''}, non lu${unreadMsgs[f.username] > 1 ? 's' : ''}">${unreadMsgs[f.username]}</span>` : ''}</b><small>${f.last && byId.has(f.last.id) ? esc(byId.get(f.last.id).name) : 'Pas encore de visite'}</small></span>
         <span class="friend-torii">${TORII}<span class="friend-count">${f.count}</span></span>
       </button>`).join('')}
       ${q.length >= 3 && !known ? `<button type="button" class="friend-card invite" data-friends="add" data-name="${esc(q)}">
@@ -1566,7 +1576,7 @@
     const btn = e.target.closest('[data-friends]');
     if (!btn) return;
     const { friends: action, name } = btn.dataset;
-    if (action === 'view') openFriend(name);
+    if (action === 'view') openChat(name);
     else if (action === 'remove' && !confirm(`Retirer @${name} ?`)) return;
     else if (action === 'add' || action === 'remove') friendAction(action, name);
   });
@@ -1656,6 +1666,7 @@
     friendVisits = null;
     friendVisitsSub = null;
     friendNews = {};
+    unreadMsgs = {};
     drawFriendVisits();
     updateFriendsBadge();
   }
@@ -1736,6 +1747,7 @@
       if (!seen) writeAccountCache(FRIENDS_SEEN_KEY, new Date().toISOString());
       else if (!friendsTabOpen()) n = FV.newVisits(friendVisits, seen).total;
     }
+    n += unreadTotal();
     $('#friends-new').textContent = n;
     $('#friends-new').hidden = !n;
   }
@@ -1752,7 +1764,172 @@
     updateFriendsBadge();
     renderFriendList();
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) loadFriendVisits(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadFriendVisits(); loadUnread(); if (chatView) loadChat(); } });
+
+  // ---------- Sanctuaires envoyés aux amis (api/messages.js, shared/messages.js) ----------
+  // Fiche d'un sanctuaire : « Envoyer à un ami » ouvre la liste de ses amis. Toucher un ami dans
+  // l'onglet Amis ouvre votre conversation (dans l'écran du compte) : plus ancien en haut, mes envois
+  // à droite, les siens à gauche, « Voir sur la carte » sur chacun. Non-lus relus à la connexion,
+  // à l'ouverture de l'onglet Amis et au retour sur l'appli (pas de temps réel).
+  const MSG = JinjaMessages;
+  const messagesApi = (method, body, query = '') => syncApiAt(`/api/messages${query}`, method, body);
+  // Déclarée en fonction : la pastille peut être redessinée avant que cette section soit lue.
+  function unreadTotal() {
+    return JinjaMessages.unread(unreadMsgs, friends ? friends.friends.map((f) => f.username) : null).total;
+  }
+  let unreadLoading = null;
+
+  function loadUnread() {
+    if (!googleToken || !username) return Promise.resolve();
+    if (unreadLoading) return unreadLoading;
+    const epoch = syncEpoch;
+    unreadLoading = messagesApi('GET')
+      .then((data) => {
+        if (epoch !== syncEpoch) return; // déconnecté entre-temps
+        unreadMsgs = data.unread || {};
+        updateFriendsBadge();
+        renderFriendList();
+      })
+      .catch(() => { /* hors ligne : pastilles inchangées */ })
+      .finally(() => { unreadLoading = null; });
+    return unreadLoading;
+  }
+
+  function openChat(name) {
+    const f = friends?.friends.find((x) => x.username === name) || { username: name };
+    friendView = null;
+    chatView = { username: name, avatar: f.avatar || null, messages: null, error: '' };
+    openAccount(true);
+    loadChat();
+  }
+
+  // (Re)lit la conversation affichée ; le serveur marque alors les envois de l'ami comme lus.
+  async function loadChat() {
+    const view = chatView;
+    if (!view) return;
+    try {
+      view.messages = MSG.sortThread((await messagesApi('GET', null, `?user=${encodeURIComponent(view.username)}`)).messages);
+      view.error = '';
+    } catch (err) { view.error = err.message; }
+    if (chatView !== view) return;
+    if (!view.error && unreadMsgs[view.username]) {
+      delete unreadMsgs[view.username];
+      updateFriendsBadge();
+      renderFriendList();
+    }
+    renderAccount();
+  }
+
+  function chatBubbleHtml(m) {
+    const s = byId.get(m.shrine);
+    const when = new Date(m.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const place = s ? [latinName(s), prefectureNames.get(s.prefecture)].filter(Boolean).join(' · ') : MSG.UNKNOWN_SHRINE;
+    return `<div class="chat-msg ${m.mine ? 'mine' : 'theirs'}">
+      <div class="chat-bubble">
+        ${s ? `<div class="chat-cover" data-chat-cover="${s.id}">${TORII}</div>` : ''}
+        <div class="chat-body">
+          <b class="chat-name">${s ? esc(s.name) : 'Sanctuaire introuvable'}</b>
+          ${place ? `<span class="chat-place">${esc(place)}</span>` : ''}
+          <button type="button" class="chat-go" data-action="locate" data-id="${esc(m.shrine)}" data-account-close${s ? '' : ' disabled'}>Voir sur la carte</button>
+        </div>
+      </div>
+      <small class="chat-date">${m.mine ? 'Envoyé' : 'Reçu'} le ${when}</small>
+    </div>`;
+  }
+
+  // Conversation (dans l'écran du compte) : en-tête de l'ami (vers son profil), puis le fil.
+  function renderChat(el) {
+    const v = chatView;
+    const thread = !v.messages ? (v.error ? '' : '<p class="hint center">Chargement…</p>')
+      : v.messages.length ? v.messages.map(chatBubbleHtml).join('') : `<p class="hint center">${esc(MSG.EMPTY_THREAD)}</p>`;
+    el.innerHTML = `
+      ${BACK_BTN}
+      <div class="chat-head">
+        <button type="button" class="chat-who" data-chat-profile title="Voir le profil">${avatarHtml(44, v)}<b>@${esc(v.username)}</b></button>
+        <button type="button" class="ghost small" data-chat-profile>Voir le profil</button>
+      </div>
+      ${v.error ? `<p class="friends-error">${esc(v.error)}</p>` : ''}
+      <div class="chat-thread">${thread}</div>`;
+    el.querySelectorAll('[data-account-close]').forEach((b) => b.addEventListener('click', () => openAccount(false)));
+    el.querySelectorAll('[data-chat-profile]').forEach((b) => b.addEventListener('click', () => { chatView = null; openFriend(v.username); }));
+    el.querySelector('.chat-thread').lastElementChild?.scrollIntoView({ block: 'nearest' });
+    hydrateChat(v);
+  }
+
+  // Photos de couverture, une après l'autre (comme la grille de la collection).
+  async function hydrateChat(view) {
+    for (const id of new Set((view.messages || []).map((m) => m.shrine))) {
+      const s = byId.get(id);
+      if (chatView !== view) return;
+      if (!s) continue;
+      const photo = await coverPhoto(s);
+      if (!photo || chatView !== view) continue;
+      document.querySelectorAll(`#account [data-chat-cover="${id}"]`).forEach((box) => {
+        box.innerHTML = `<img src="${esc(photo.src)}" alt="" referrerpolicy="no-referrer">`;
+      });
+    }
+  }
+
+  // Fenêtre « Envoyer à un ami » : la liste d'amis, un toucher envoie.
+  let sendId = null;
+  async function openSendModal(id) {
+    const s = byId.get(id);
+    if (!s) return;
+    sendId = id;
+    $('#send-title').textContent = `Envoyer « ${s.name} » à un ami`;
+    setSendStatus('');
+    $('#send-modal').hidden = false;
+    if (!username) {
+      $('#send-list').innerHTML = '<p class="hint">Choisis d\'abord ton nom d\'utilisateur public (écran du compte) : c\'est par ce nom que tes amis te trouvent.</p>';
+      return;
+    }
+    renderSendList();
+    if (!friends) { await loadFriends(); if (sendId === id) renderSendList(); }
+  }
+
+  function renderSendList() {
+    const list = friends?.friends || [];
+    $('#send-list').innerHTML = !friends
+      ? (friendsError ? `<p class="friends-error">${esc(friendsError)}</p>` : '<p class="hint">Chargement de tes amis…</p>')
+      : !list.length ? `<p class="hint">${esc(MSG.NO_FRIENDS)}</p>`
+      : list.map((f) => `<button type="button" class="friend-card send-to" data-send-to="${esc(f.username)}">
+          ${avatarHtml(40, f)}<span class="friend-text"><b>@${esc(f.username)}</b></span></button>`).join('');
+  }
+
+  function setSendStatus(text, kind = '') {
+    const el = $('#send-status');
+    el.textContent = text;
+    el.className = `send-status ${kind}`;
+    el.hidden = !text;
+  }
+
+  function closeSendModal() { $('#send-modal').hidden = true; sendId = null; }
+
+  async function sendToFriend(name) {
+    const id = sendId;
+    const buttons = [...document.querySelectorAll('#send-list button')];
+    buttons.forEach((b) => { b.disabled = true; });
+    setSendStatus('Envoi…');
+    try {
+      await messagesApi('POST', { username: name, shrine: id });
+      if (sendId !== id) return;
+      setSendStatus(`Envoyé à @${name} ✓`, 'ok');
+      setTimeout(() => { if (sendId === id) closeSendModal(); }, 1400);
+    } catch (err) {
+      if (sendId !== id) return;
+      // Rien n'est envoyé ; l'ami a peut-être été retiré entre-temps : liste relue.
+      setSendStatus(`Pas envoyé : ${err.message}`, 'error');
+      buttons.forEach((b) => { b.disabled = false; });
+      loadFriends().then(() => { if (sendId === id) renderSendList(); });
+    }
+  }
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#send-modal').hidden) closeSendModal(); });
+  $('#send-modal').addEventListener('click', (e) => {
+    if (e.target.closest('[data-send-close]')) { closeSendModal(); return; }
+    const btn = e.target.closest('[data-send-to]');
+    if (btn && !btn.disabled) sendToFriend(btn.dataset.sendTo);
+  });
 
   // Ouvre le menu et met en évidence l'encart de connexion.
   // ---------- Écran du compte ----------
@@ -1775,7 +1952,7 @@
   }
 
   function openAccount(open = true) {
-    if (!open) friendView = null;
+    if (!open) { friendView = null; chatView = null; }
     document.body.classList.toggle('account-open', open);
     $('#account').hidden = !open;
     if (open) {
@@ -1786,7 +1963,7 @@
   const showAccount = () => { map.closePopup(); openAccount(true); };
   $('#account-btn').addEventListener('click', (e) => {
     e.stopPropagation();
-    if (friendView) { friendView = null; openAccount(true); return; }
+    if (friendView || chatView) { friendView = null; chatView = null; openAccount(true); return; }
     openAccount(!document.body.classList.contains('account-open'));
   });
 
@@ -1803,6 +1980,7 @@
     $('#account-btn').hidden = !googleClientId;
     const el = $('#account');
     if (el.hidden) return;
+    if (chatView) { renderChat(el); return; }
     if (friendView) { renderFriendProfile(el); return; }
     if (googleUser) {
       const { visited, wished, mine, prefs } = accountStats();
