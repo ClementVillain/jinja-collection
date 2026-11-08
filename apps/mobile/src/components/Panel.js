@@ -11,6 +11,7 @@ import JinjaGeo from '@jinja/shared/geo';
 import { Postcard, useCoverPhoto } from './PostcardModal';
 import Friends from './Friends';
 import FriendProfile from './FriendProfile';
+import Conversation from './Conversation';
 import AccountScreen, { Avatar } from './AccountScreen';
 import { shrines, byId, useCollection } from '../state/CollectionContext';
 import { fmtDate, fmtDistance, fmtDuration, latinName, normalize } from '../lib/text';
@@ -203,6 +204,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
   const setQuery = (q) => setSearch({ query: q, city: null });
   const cities = useCityPlaces(query);
   const [excluded, setExcluded] = useState(() => new Set());
+  const chatScroll = useRef(null);
   const width = Dimensions.get('window').width;
   const cardW = (width - 16 * 2 - 10) / 2;
 
@@ -259,9 +261,15 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
         <BottomSheetScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <AccountScreen onBack={() => setAccount(false)} onSelect={(id) => { setAccount(false); onSelect(id); }} />
         </BottomSheetScrollView>
-      ) : friend ? (
+      ) : friend?.profile ? (
         <BottomSheetScrollView keyboardShouldPersistTaps="handled">
           <FriendProfile key={friend.username} friend={friend} cardWidth={cardW} onSelect={onSelect} onRemoved={() => setFriend(null)} onBack={() => setFriend(null)} />
+        </BottomSheetScrollView>
+      ) : friend ? (
+        // Conversation : « Voir sur la carte » la ferme, puis ouvre la fiche du sanctuaire.
+        <BottomSheetScrollView ref={chatScroll} keyboardShouldPersistTaps="handled">
+          <Conversation key={friend.username} friend={friend} onBack={() => setFriend(null)} onProfile={() => setFriend({ ...friend, profile: true })}
+            onShowOnMap={(id) => { setFriend(null); onSelect(id); }} onLoaded={() => chatScroll.current?.scrollToEnd({ animated: false })} />
         </BottomSheetScrollView>
       ) : (
       <>
@@ -271,7 +279,7 @@ export default function Panel({ onSelect, onOpenCard, route, setRoute, onStartCi
             <Text style={[styles.tabText, tab === k && { color: colors.accentStrong }]}>{label}</Text>
             {k === 'wish' ? <View style={[styles.badge, { backgroundColor: colors.accent }]}><Text style={styles.badgeText}>{wishItems.length}</Text></View> : null}
             {k === 'collection' ? <View style={styles.badge}><Text style={styles.badgeText}>{n}</Text></View> : null}
-            {k === 'friends' && c.friendsBadge ? <View style={[styles.badge, { backgroundColor: colors.soft }]} accessibilityLabel="Nouvelles visites de tes amis"><Text style={[styles.badgeText, { color: colors.ink }]}>{c.friendsBadge}</Text></View> : null}
+            {k === 'friends' && c.friendsBadge + c.unreadTotal ? <View style={[styles.badge, { backgroundColor: colors.soft }]} accessibilityLabel="Nouvelles visites et sanctuaires reçus de tes amis"><Text style={[styles.badgeText, { color: colors.ink }]}>{c.friendsBadge + c.unreadTotal}</Text></View> : null}
           </Pressable>
         ))}
       </View>

@@ -1,6 +1,6 @@
 // Fiche d'un sanctuaire (équivalent de la popup du site) : carrousel de photos, nom en kanji
 // et romaji, « J'y suis allé » / « À visiter », « Y aller », « Partager » (lien vers le site),
-// lien Google Maps, et partage d'une photo prise sur place.
+// « Envoyer à un ami » (SendToFriend), lien Google Maps, et partage d'une photo prise sur place.
 import { useEffect, useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Dimensions, FlatList, Image, Linking, Pressable, Share, StyleSheet, View } from 'react-native';
 import Text from './Text';
@@ -13,12 +13,14 @@ import { coverSlides, creditOf, forgetPhoto, rememberAuthor } from '../lib/photo
 import { fmtDate, latinName } from '../lib/text';
 import { useCollection } from '../state/CollectionContext';
 import Torii from './Torii';
+import SendToFriend from './SendToFriend';
 import { colors, fonts } from '../theme';
 
 const COVER_H = 190;
 
 // Lien partagé : ouvre le site sur ce sanctuaire (voir la section « Partage » de app.js).
 const SITE_URL = 'https://jinja-collection.vercel.app/';
+const SEND_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="${colors.ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></svg>`;
 const SHARE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="${colors.ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/></svg>`;
 
 // Feuille de partage iOS : nom du sanctuaire et lien https (partage annulé : rien à faire).
@@ -96,6 +98,7 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
   const [status, setStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [sending, setSending] = useState(false);
   const width = Dimensions.get('window').width - 32;
   const visited = c.isVisited(shrine.id);
   const wished = c.isWished(shrine.id);
@@ -208,6 +211,11 @@ export default function ShrineDetail({ shrine, onClose, onNavigate, onOpenCard, 
           <Text style={styles.ghostText}>Partager</Text>
         </Pressable>
       </View>
+      <Pressable style={[styles.btn, styles.ghost, styles.share, { marginTop: 8 }]} onPress={() => (c.user ? setSending(true) : onLoginHint())} accessibilityLabel="Envoyer ce sanctuaire à un ami de l'app">
+        <SvgXml xml={SEND_ICON} width={17} height={17} />
+        <Text style={styles.ghostText}>Envoyer à un ami</Text>
+      </Pressable>
+      <SendToFriend shrine={shrine} visible={sending} onClose={() => setSending(false)} />
       <Pressable onPress={() => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${shrine.lat}%2C${shrine.lon}`)}>
         <Text style={styles.gmaps}>Ouvrir dans Google Maps</Text>
       </Pressable>

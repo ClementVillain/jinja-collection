@@ -33,10 +33,11 @@ function Main() {
   const [showUser, setShowUser] = useState(false);
   const [simulate, setSimulate] = useState(false);
   const [search, setSearch] = useState({ query: '', city: null });
-  // Onglet du volet et profil d'ami ouvert, gardés ici : le volet est démonté pendant une fiche.
+  // Onglet du volet et ami ouvert (conversation, ou son profil si friend.profile), gardés ici :
+  // le volet est démonté pendant une fiche.
   const [tab, setTab] = useState('explore');
   const [friend, setFriend] = useState(null);
-  // Déconnexion : le profil d'ami ouvert se ferme.
+  // Déconnexion : la conversation ou le profil d'ami ouvert se ferme.
   useEffect(() => { setFriend(null); }, [c.signOuts]);
   // Onglet Amis ouvert : la pastille des nouvelles visites d'amis disparaît.
   useEffect(() => { c.setFriendsTabOpen(tab === 'friends'); }, [tab, c.username]);

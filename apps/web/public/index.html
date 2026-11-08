@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=43">
+  <link rel="stylesheet" href="style.css?v=44">
 </head>
 <body>
   <aside class="panel">
@@ -38,7 +38,7 @@
       <button class="tab" data-tab="wish" role="tab">À visiter <span id="wish-count" class="badge badge-gold">0</span></button>
       <button class="tab" data-tab="visited" role="tab">Visités <span id="visited-count" class="badge">0</span></button>
       <button class="tab" data-tab="collection" role="tab">Collection</button>
-      <button class="tab" data-tab="friends" role="tab">Amis <span id="friends-count" class="badge" hidden>0</span><span id="friends-new" class="badge badge-new" title="Nouvelles visites de tes amis" hidden>0</span></button>
+      <button class="tab" data-tab="friends" role="tab">Amis <span id="friends-count" class="badge" hidden>0</span><span id="friends-new" class="badge badge-new" title="Nouvelles visites et sanctuaires reçus de tes amis" hidden>0</span></button>
     </nav>
 
     <section class="tab-panel active" id="tab-explore">
@@ -94,6 +94,18 @@
     </div>
   </div>
 
+  <div id="send-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-send-close></div>
+    <div class="modal-body send-body">
+      <p id="send-title" class="modal-title">Envoyer à un ami</p>
+      <div id="send-list"></div>
+      <p id="send-status" class="send-status" hidden></p>
+      <div class="modal-actions">
+        <button data-send-close class="ghost">Fermer</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
   <script src="shared/merge.js?v=38"></script>
@@ -103,6 +115,7 @@
   <script src="navigation.js?v=38"></script>
   <script src="shared/card.js?v=38"></script>
   <script src="shared/friendvisits.js?v=1"></script>
-  <script src="app.js?v=44"></script>
+  <script src="shared/messages.js?v=1"></script>
+  <script src="app.js?v=45"></script>
 </body>
 </html>

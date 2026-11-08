@@ -1,6 +1,7 @@
 // Onglet « Amis » (comptes connectés avec un nom d'utilisateur) : recherche dans ses amis,
 // bouton pour en ajouter, demandes reçues, puis une carte par ami (photo, nom, dernier
-// sanctuaire visité, nombre de cartes). Toucher un ami ouvre son profil (FriendProfile).
+// sanctuaire visité, nombre de cartes, sanctuaires reçus non lus). Toucher un ami ouvre votre
+// conversation (Conversation), d'où l'on rejoint son profil (FriendProfile).
 // La dernière liste reçue est gardée sur le téléphone : affichée tout de suite, puis rafraîchie.
 // Serveur : api/friends.js — seuls les noms d'utilisateur circulent.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -10,6 +11,7 @@ import { SvgXml } from 'react-native-svg';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { Avatar } from './AccountScreen';
 import Torii from './Torii';
+import JinjaMessages from '@jinja/shared/messages';
 import { apiJson } from '../lib/api';
 import { KEYS } from '../lib/store';
 import { byId, useCollection } from '../state/CollectionContext';
@@ -30,7 +32,7 @@ function SkeletonRow() {
   );
 }
 
-function FriendRow({ friend, news, onPress }) {
+function FriendRow({ friend, news, unread, onPress }) {
   const last = friend.last && byId.get(friend.last.id);
   return (
     <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]} onPress={onPress}>
@@ -39,6 +41,7 @@ function FriendRow({ friend, news, onPress }) {
         <View style={styles.nameRow}>
           <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>@{friend.username}</Text>
           {news ? <Text style={styles.news}>{news} nouvelle{news > 1 ? 's' : ''}</Text> : null}
+          {unread ? <Text style={styles.unread} accessibilityLabel={`${JinjaMessages.countLabel(unread)} reçu${unread > 1 ? 's' : ''}, non lu${unread > 1 ? 's' : ''}`}>{unread}</Text> : null}
         </View>
         <Text style={styles.sub} numberOfLines={1}>{last ? last.name : 'Pas encore de visite'}</Text>
       </View>
@@ -144,7 +147,7 @@ export default function Friends({ onLogin, onOpenFriend }) {
             </View>
           ))}
 
-          {shown.map((f) => <FriendRow key={f.username} friend={f} news={c.friendNews[f.username]} onPress={() => onOpenFriend(f)} />)}
+          {shown.map((f) => <FriendRow key={f.username} friend={f} news={c.friendNews[f.username]} unread={c.unreadMessages[f.username]} onPress={() => onOpenFriend(f)} />)}
 
           {q && !isKnown && q.length >= 3 ? (
             <Pressable style={[styles.card, styles.invite]} onPress={add}>
@@ -182,6 +185,7 @@ const styles = StyleSheet.create({
   name: { fontSize: 16, fontWeight: '700', color: colors.ink },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   news: { fontSize: 11, fontWeight: '700', color: colors.ink, backgroundColor: colors.soft, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1, overflow: 'hidden' },
+  unread: { minWidth: 18, fontSize: 11, fontWeight: '700', color: '#fff', backgroundColor: colors.accentStrong, borderRadius: 9, paddingHorizontal: 5, lineHeight: 18, textAlign: 'center', overflow: 'hidden' },
   sub: { fontSize: 13, color: colors.muted, marginTop: 2 },
   toriiBox: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   count: { position: 'absolute', right: -6, bottom: -6, minWidth: 22, height: 22, paddingHorizontal: 5, borderRadius: 11, backgroundColor: colors.accentStrong, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.paper2 },

@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import JinjaMerge from '@jinja/shared/merge';
 import JinjaProximity from '@jinja/shared/proximity';
 import JinjaFriendVisits from '@jinja/shared/friendvisits';
+import JinjaMessages from '@jinja/shared/messages';
 import { API_BASE, APPLE_SIGN_IN, GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, apiJson } from '../lib/api';
 import { KEYS, loadJson, saveJson } from '../lib/store';
 import { clearPhotoCache, fetchCommunityPhotos } from '../lib/photos';
@@ -84,6 +85,8 @@ export function CollectionProvider({ children }) {
   const [friendsBadge, setFriendsBadge] = useState(0);
   const [friendNews, setFriendNews] = useState({});
   const friendsTabOpen = useRef(false);
+  // Sanctuaires reçus non lus, par ami ({ nom: nombre }, api/messages.js).
+  const [unreadMessages, setUnreadMessages] = useState({});
   // Case « Visites des amis » de la carte : réglage du téléphone (gardé à la déconnexion).
   const [showFriendVisits, setShowFriendVisitsState] = useState(true);
 
@@ -420,6 +423,7 @@ export function CollectionProvider({ children }) {
     setFriendVisits(null);
     setFriendsBadge(0);
     setFriendNews({});
+    setUnreadMessages({});
   }
 
   async function refreshFriendVisits() {
@@ -441,10 +445,34 @@ export function CollectionProvider({ children }) {
     } catch { /* hors ligne, pas de nom d'utilisateur : rien de plus à afficher */ }
   }
 
+  // ---------- Sanctuaires envoyés entre amis (api/messages.js, packages/shared/messages.js) ----------
+  // Non-lus relus aux mêmes moments que les visites des amis (pas de temps réel) ; ouvrir une
+  // conversation les marque comme lus (côté serveur, et ici sans attendre le prochain rechargement).
+  async function refreshUnread() {
+    const e = epoch.current;
+    const sub = accountSub();
+    if (!sub || !usernameRef.current) return;
+    try {
+      const token = await freshToken();
+      if (!token) return;
+      const { unread = {} } = await apiJson('/api/messages', { token });
+      if (e !== epoch.current || sub !== accountSub()) return;
+      setUnreadMessages(unread);
+    } catch { /* hors ligne : pastilles inchangées */ }
+  }
+  const markChatRead = (name) => setUnreadMessages((u) => {
+    if (!u[name]) return u;
+    const next = { ...u };
+    delete next[name];
+    return next;
+  });
+  const unreadTotal = JinjaMessages.unread(unreadMessages).total;
+
   useEffect(() => {
     if (!user || !username) return undefined;
     refreshFriendVisits();
-    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') refreshFriendVisits(); });
+    refreshUnread();
+    const sub = AppState.addEventListener('change', (st) => { if (st === 'active') { refreshFriendVisits(); refreshUnread(); } });
     return () => sub.remove();
   }, [!!user, username]);
 
@@ -453,6 +481,7 @@ export function CollectionProvider({ children }) {
     friendsTabOpen.current = open;
     if (!open) return;
     setFriendsBadge(0);
+    refreshUnread();
     const e = epoch.current;
     await refreshFriendVisits();
     const shrines = friendVisitsRef.current;
@@ -515,6 +544,7 @@ export function CollectionProvider({ children }) {
     user, signIn, signInWithApple, signOut, syncNow, syncStatus, googleSignInAvailable, appleSignInAvailable, profile,
     username, chooseUsername, discoveries, freshToken, signOuts, readAccountCache, writeAccountCache,
     friendVisits, friendsBadge, friendNews, setFriendsTabOpen, showFriendVisits, setShowFriendVisits,
+    unreadMessages, unreadTotal, refreshUnread, markChatRead,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
